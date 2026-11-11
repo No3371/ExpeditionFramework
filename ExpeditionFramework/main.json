@@ -1,0 +1,219 @@
+// The standard kits. An area opts in by listing them, so none of this is built into the engine.
+{
+  "include": [ { "file": "gunsmith.json", "requires": ["gunsmith_expansion"] } ],
+
+  "item_stats": {
+    "#melee": { "sides": 4 },
+    "#firearm": { "capacity": 4 },
+
+    "bandage_item": { "tags": ["medicine"], "heal_count": 1, "heal_sides": 6, "heal_flat": 2, "stops_bleeding": 1 },
+    "topical_bandage_item": { "tags": ["medicine"], "heal_count": 2, "heal_sides": 4, "heal_flat": 3, "stops_bleeding": 1 },
+    "hemostatic_bandage_item": { "tags": ["medicine"], "heal_count": 2, "heal_sides": 6, "heal_flat": 2, "stops_bleeding": 1 },
+    "rubbing_alcohol": { "tags": ["medicine"], "heal_count": 1, "heal_sides": 4, "heal_flat": 1, "stops_bleeding": 1 },
+    "phagimycin_pill": { "tags": ["medicine"], "heal_count": 1, "heal_sides": 6 },
+    "unlicensed_phagimycin_pill": { "tags": ["medicine"], "heal_count": 1, "heal_sides": 6, "can_overdose": 1 },
+    "fanta_pill": { "tags": ["medicine"], "heal_count": 2, "heal_sides": 8, "heal_flat": 2, "can_overdose": 1 },
+    "salve": { "tags": ["medicine"], "heal_count": 3, "heal_sides": 6, "heal_flat": 2, "stops_bleeding": 1 },
+    "blood_bag": { "tags": ["medicine"], "heal_count": 3, "heal_sides": 8, "heal_flat": 4 },
+    "blue_blood_bag": { "tags": ["medicine"], "heal_count": 3, "heal_sides": 8, "heal_flat": 4 },
+
+    "box_cutter": { "tags": ["melee"], "sides": 3 },
+    "glass_shard_shiv": { "tags": ["melee"], "sides": 3 },
+    "kitchen_knife": { "tags": ["melee"], "sides": 4 },
+    "skinning_knife": { "tags": ["melee"], "bonus": 1, "sides": 4 },
+    "combat_knife": { "tags": ["melee"], "bonus": 1, "sides": 6 },
+    "kitchen_cleaver": { "tags": ["melee"], "sides": 6 },
+    "pipe_weapon": { "tags": ["melee"], "bonus": -1, "sides": 6 },
+    "crowbar": { "tags": ["melee"], "sides": 6 },
+    "hatchet": { "tags": ["melee"], "sides": 8 },
+    "combat_machete": { "tags": ["melee"], "bonus": 1, "sides": 8 },
+    "stun_baton": { "tags": ["melee"], "bonus": 1, "sides": 4, "stuns": 1 },
+    "tazer": { "tags": ["melee"], "sides": 3, "stuns": 1 },
+    "stun_gun": { "tags": ["melee"], "bonus": 1, "sides": 3, "stuns": 1 },
+
+    "printed_gun": { "capacity": 3 },
+    "handmade_pistol": { "capacity": 4 },
+    "heavy_handmade_pistol": { "capacity": 4 },
+    "glock_receiver": { "capacity": 6 },
+    "smg": { "capacity": 8 },
+    "shotgun": { "capacity": 4 },
+    "revolver": { "capacity": 6 },
+
+    "mag_22": { "capacity_bonus": 1 },
+    "mag_22_high": { "capacity_bonus": 2 },
+    "mag_22_ext": { "capacity_bonus": 4 },
+    "mag_10mm": { "capacity_bonus": 1 },
+    "mag_10mm_high": { "capacity_bonus": 2 },
+    "mag_10mm_ext": { "capacity_bonus": 4 },
+    "mag_10mm_smg": { "capacity_bonus": 2 },
+    "mag_10mm_smg_high": { "capacity_bonus": 4 },
+    "mag_10mm_smg_box": { "capacity_bonus": 8 }
+  },
+
+  "statuses": {
+    "bleeding": {
+      "name": "ef_status_bleeding",
+      "on": {
+        "turn_end": [
+          { "say": { "text": "ef_bleed_tick", "tone": "bad" } },
+          { "damage": { "to": "self", "amount": 1, "armor": "ignore" } }
+        ]
+      }
+    }
+  },
+
+  "intents": {
+    "surprised": { "label": "ef_intent_surprised", "tone": "good", "do": [ { "say": { "text": "ef_do_surprised", "args": ["self.name"], "tone": "good" } } ] },
+    "staggered": { "label": "ef_intent_staggered", "tone": "good", "do": [ { "say": { "text": "ef_do_staggered", "args": ["self.name"], "tone": "good" } } ] },
+    "strike": {
+      "label": "ef_intent_strike",
+      "do": [
+        { "check": {
+          "chance": "70 + self.accuracy - target.dodge",
+          "success": [
+            { "say": { "text": "ef_do_strike_hit", "args": ["self.name"], "tone": "bad" } },
+            { "damage": { "amount": "self.attack + 1d4" } }
+          ],
+          "failure": [ { "say": { "text": "ef_do_strike_miss", "args": ["self.name"], "tone": "good" } } ]
+        } }
+      ]
+    },
+    "wind_up": {
+      "label": "ef_intent_wind_up",
+      "tell": { "text": "ef_tell_wind_up", "args": ["self.name"] },
+      "tone": "bad",
+      "interruptible": true,
+      "next": "heavy_strike",
+      "do": [ { "say": { "text": "ef_do_wind_up", "args": ["self.name"], "tone": "bad" } } ]
+    },
+    "heavy_strike": {
+      "label": "ef_intent_heavy_strike",
+      "do": [
+        { "say": { "text": "ef_do_heavy_strike", "args": ["self.name"], "tone": "bad" } },
+        { "damage": { "amount": "self.attack + 2d4" } }
+      ]
+    },
+    "flee": {
+      "label": "ef_intent_flee",
+      "do": [
+        { "say": { "text": "ef_do_flee", "args": ["self.name"], "tone": "good" } },
+        { "remove": { "who": "self" } }
+      ]
+    }
+  },
+
+  "behaviors": {
+    "brawler": [
+      { "intent": "strike", "weight": 70 },
+      { "intent": "wind_up", "weight": 30 }
+    ],
+    "coward": [
+      { "intent": "strike", "weight": 70 },
+      { "intent": "flee", "weight": 30, "when": "self.hp * 2 <= self.max_hp" }
+    ]
+  },
+
+  "kits": {
+    "explore": {
+      "interactions": [
+        { "id": "press_on", "label": "ef_action_press_on", "group": "explore", "do": [ { "next_room": true } ] },
+        { "id": "head_home", "label": "ef_action_head_home", "group": "move", "do": [ { "leave": "left" } ] }
+      ],
+      "on": {
+        "run_end": [
+          { "if": { "when": "run.outcome_left", "then": [ { "say": { "text": "ef_outcome_left" } } ] } },
+          { "if": { "when": "run.outcome_cleared", "then": [ { "say": { "text": "ef_outcome_cleared", "tone": "good" } } ] } },
+          { "if": { "when": "run.outcome_knocked_out", "then": [ { "say": { "text": "ef_outcome_knocked_out", "tone": "bad" } } ] } }
+        ]
+      }
+    },
+
+    "firearms": {
+      "interactions": [
+        {
+          "id": "shoot",
+          "label": { "text": "ef_action_shoot", "args": ["item.name", "target.name"] },
+          "group": "attack",
+          "in": "combat",
+          "targets": "enemy",
+          "uses": { "select": { "all": ["#firearm", "#in_hand"] } },
+          "when": "item.loaded > 0",
+          "sound": "item",
+          "do": [ { "add": { "var": "item.loaded", "value": -1 } } ],
+          "check": {
+            "chance": "55 + item.accuracy * 5 - target.dodge",
+            "success": [
+              { "say": { "text": "ef_shoot_hit", "args": ["target.name"], "tone": "good" } },
+              { "damage": { "amount": "1d6 + item.firepower / 2" } }
+            ],
+            "failure": [ { "say": { "text": "ef_shoot_miss", "args": ["target.name"] } } ]
+          }
+        },
+        {
+          "id": "reload",
+          "label": { "text": "ef_action_reload", "args": ["item.name"] },
+          "group": "tactics",
+          "in": ["combat", "room"],
+          "uses": { "select": "#firearm", "with": { "select": "#ammo", "where": { "fits": true }, "each": false, "consume": 1 } },
+          "when": "item.loaded < item.capacity",
+          "do": [ { "reload": true }, { "say": { "text": "ef_reloaded", "args": ["item.name"] } } ]
+        }
+      ]
+    },
+
+    "melee": {
+      "interactions": [
+        {
+          "id": "strike",
+          "label": { "text": "ef_action_melee", "args": ["item.name", "target.name"] },
+          "group": "attack",
+          "in": "combat",
+          "targets": "enemy",
+          "uses": { "select": { "all": ["#melee", "#in_hand"] } },
+          "check": {
+            "chance": "65 - target.dodge",
+            "success": [
+              { "say": { "text": "ef_melee_hit", "args": ["target.name"], "tone": "good" } },
+              { "damage": { "amount": "1d6 + item.bonus" } }
+            ],
+            "failure": [ { "say": { "text": "ef_melee_miss", "args": ["target.name"] } } ]
+          }
+        },
+        {
+          "id": "punch",
+          "label": { "text": "ef_action_punch", "args": ["target.name"] },
+          "group": "attack",
+          "in": "combat",
+          "targets": "enemy",
+          "where": { "not": { "carrying": { "all": ["#melee", "#in_hand"] } } },
+          "check": {
+            "chance": "60 - target.dodge",
+            "success": [
+              { "say": { "text": "ef_melee_hit", "args": ["target.name"], "tone": "good" } },
+              { "damage": { "amount": "1d3" } }
+            ],
+            "failure": [ { "say": { "text": "ef_melee_miss", "args": ["target.name"] } } ]
+          }
+        }
+      ]
+    },
+
+    "medicine": {
+      "interactions": [
+        {
+          "id": "heal",
+          "label": { "text": "ef_action_heal", "args": ["item.name"] },
+          "group": "supplies",
+          "in": ["room", "combat"],
+          "uses": { "select": "#medicine", "consume": 1 },
+          "when": "player.hp < player.max_hp",
+          "do": [
+            { "heal": { "amount": "dice(item.heal_count, item.heal_sides) + item.heal_flat" } },
+            { "if": { "when": "item.stops_bleeding", "then": [ { "clear_status": { "to": "player", "id": "bleeding" } } ] } },
+            { "say": { "text": "ef_healed", "args": ["item.name"], "tone": "good" } }
+          ]
+        }
+      ]
+    }
+  }
+}

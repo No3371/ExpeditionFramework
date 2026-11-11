@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Manifest>
+  <ID>sample_area</ID>
+  <Name>Expedition Sample: The Flooded Cellar</Name>
+  <Author>developer</Author>
+  <ModVersion>0.1.0</ModVersion>
+  <Description>A small example area for the Expedition Framework.</Description>
+  <GameVersions>
+    <Version>0.46</Version>
+  </GameVersions>
+  <Prerequisites>
+    <Mod>expedition_framework</Mod>
+  </Prerequisites>
+  <Assemblies />
+  <Capabilities />
+</Manifest>

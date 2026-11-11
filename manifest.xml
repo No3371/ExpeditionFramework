@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Manifest>
+  <ID>expedition_framework</ID>
+  <Name>Expedition Framework</Name>
+  <Author>developer</Author>
+  <ModVersion>0.1.0</ModVersion>
+  <Description>Plays night expeditions defined in data files: areas, rooms, encounters, events and what the player can do in them. Needed by expedition mods that list it as a prerequisite.</Description>
+  <GameVersions>
+    <Version>0.46</Version>
+  </GameVersions>
+  <Prerequisites />
+  <Assemblies>
+    <Assembly>ExpeditionFramework.Api.dll</Assembly>
+    <Assembly>ExpeditionFramework.dll</Assembly>
+  </Assemblies>
+  <Capabilities />
+</Manifest>

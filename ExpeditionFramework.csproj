@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>ExpeditionFramework</AssemblyName>
+    <RootNamespace>ExpeditionFramework</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <GameManaged>..\..\Probably Stolen_Data\Managed\</GameManaged>
+    <InstallDir>..\..\Mods\ExpeditionFramework\</InstallDir>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="api\ExpeditionFramework.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony"><HintPath>$(GameManaged)0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManaged)Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(GameManaged)UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManaged)UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(GameManaged)UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(GameManaged)UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(GameManaged)UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameManaged)UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManaged)Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="InstallMod" AfterTargets="Build">
+    <ItemGroup>
+      <Localization Include="Localization\*.csv" />
+      <Packs Include="ExpeditionFramework\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="$(TargetPath);$(OutDir)ExpeditionFramework.Api.dll;manifest.xml" DestinationFolder="$(InstallDir)" />
+    <Copy SourceFiles="@(Localization)" DestinationFolder="$(InstallDir)Localization\" />
+    <Copy SourceFiles="@(Packs)" DestinationFolder="$(InstallDir)ExpeditionFramework\" />
+  </Target>
+
+</Project>

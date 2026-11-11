@@ -1,0 +1,242 @@
+// A small area that exercises the framework: rooms, a layout, encounters, branching events and enemy-specific options.
+{
+  "item_groups": {
+    "bright": ["flashlight", "flashbang_grenade"],
+    "explosive": ["c4", "c4_set"]
+  },
+
+  "statuses": {
+    "blinded": {
+      "name": "sa_status_blinded",
+      "turns": 2,
+      "on": { "turn_start": [ { "intent": { "who": "self", "id": "expedition_framework:staggered" } } ] }
+    }
+  },
+
+  "behaviors": {
+    "foreman": [
+      { "intent": "expedition_framework:strike", "weight": 50 },
+      { "intent": "expedition_framework:wind_up", "weight": 30 },
+      { "intent": "call_help", "weight": 20, "when": "run.called_help == 0" }
+    ]
+  },
+
+  "intents": {
+    "call_help": {
+      "label": "sa_intent_call_help",
+      "tell": { "text": "sa_tell_call_help", "args": ["self.name"] },
+      "tone": "bad",
+      "do": [
+        { "set": { "var": "run.called_help", "value": 1 } },
+        { "say": { "text": "sa_do_call_help", "args": ["self.name"], "tone": "bad" } },
+        { "spawn": "scrapper" }
+      ]
+    }
+  },
+
+  "loot": {
+    "cellar_scraps": { "items": [ { "item": "cup_noodle", "weight": 3 }, { "item": "bandage_item", "weight": 2 }, "flashlight" ] }
+  },
+
+  "enemies": {
+    "rat": {
+      "name": "sa_enemy_rat",
+      "tags": ["animal"],
+      "stats": { "hp": 4, "attack": 1, "accuracy": 0, "dodge": 10 },
+      "behavior": "expedition_framework:coward",
+      "interactions": [
+        {
+          "id": "feed_rat",
+          "label": { "text": "sa_action_feed", "args": ["item.name"] },
+          "group": "tactics",
+          "uses": { "select": ["cup_noodle", "cat_bar"], "consume": 1 },
+          "do": [
+            { "say": { "text": "sa_fed", "args": ["target.name"], "tone": "good" } },
+            { "remove": { "who": "target" } }
+          ]
+        }
+      ]
+    },
+    "scrapper": {
+      "name": "sa_enemy_scrapper",
+      "tags": ["human"],
+      "stats": { "hp": 8, "attack": 2, "accuracy": 0, "dodge": 5 },
+      "behavior": "expedition_framework:brawler",
+      "opening": "expedition_framework:surprised",
+      "on": { "defeated": [ { "if": { "when": { "chance": 40 }, "then": [ { "give_loot": "cellar_scraps" } ] } } ] }
+    },
+    // The weak-point case: what the player can do to the foreman, what can be used, and what happens, per option.
+    "foreman": {
+      "name": "sa_enemy_foreman",
+      "tags": ["human", "boss"],
+      "stats": { "hp": 16, "attack": 3, "accuracy": 5, "dodge": 0, "armor": 1 },
+      "behavior": "foreman",
+      "interactions": [
+        {
+          "id": "blind_foreman",
+          "label": { "text": "sa_action_blind", "args": ["item.name"] },
+          "group": "tactics",
+          "uses": { "select": "#bright" },
+          "when": "target.blinded_once == 0",
+          "do": [
+            { "set": { "var": "target.blinded_once", "value": 1 } },
+            { "say": { "text": "sa_blinded", "args": ["target.name"], "tone": "good" } },
+            { "status": { "to": "target", "id": "blinded" } }
+          ]
+        },
+        {
+          "id": "blast_foreman",
+          "label": { "text": "sa_action_blast", "args": ["item.name"] },
+          "group": "tactics",
+          "uses": { "select": "#explosive", "consume": 1 },
+          "check": {
+            "chance": "75",
+            "success": [
+              { "say": { "text": "sa_blast_hit", "args": ["target.name"], "tone": "good" } },
+              { "damage": { "amount": "3d6 + 4", "armor": "ignore" } }
+            ],
+            "failure": [
+              { "say": { "text": "sa_blast_miss", "tone": "bad" } },
+              { "damage": { "to": "player", "amount": "1d4", "armor": "ignore" } }
+            ]
+          }
+        },
+        {
+          "id": "interrupt_foreman",
+          "label": { "text": "sa_action_interrupt", "args": ["item.name"] },
+          "group": "tactics",
+          "uses": { "select": "crowbar", "each": false },
+          "when": { "intent_interruptible": true },
+          "do": [
+            { "say": { "text": "sa_interrupted", "args": ["target.name"], "tone": "good" } },
+            { "intent": { "who": "target", "id": "expedition_framework:staggered" } }
+          ]
+        }
+      ],
+      "on": { "defeated": [ { "credits": "2d20 + 10" }, { "set": { "var": "run.boss_down", "value": 1 } } ] }
+    }
+  },
+
+  "encounters": {
+    "rats": { "tags": ["cellar"], "weight": 3, "enemies": [ { "id": "rat", "count": 2 } ] },
+    "scrappers": { "tags": ["cellar"], "weight": 2, "enemies": ["scrapper"], "when": "run.depth >= 2" },
+    "foreman": { "enemies": ["foreman", "rat"] }
+  },
+
+  "events": {
+    "stranger": {
+      "tags": ["cellar"],
+      "text": "sa_event_stranger",
+      "choices": [
+        {
+          "id": "give",
+          "label": { "text": "sa_choice_give", "args": ["item.name"] },
+          "group": "supplies",
+          "uses": { "select": "#medicine", "each": false, "consume": 1 },
+          "do": [
+            { "say": { "text": "sa_given", "tone": "good" } },
+            { "add": { "var": "run.favours", "value": 1 } },
+            { "give_loot": "cellar_scraps" }
+          ]
+        },
+        {
+          "id": "rob",
+          "label": "sa_choice_rob",
+          "group": "attack",
+          "do": [ { "say": { "text": "sa_robbing", "tone": "bad" } }, { "fight": { "from": ["scrappers"], "won": [ { "credits": "2d6" } ] } } ]
+        },
+        { "id": "ignore", "label": "sa_choice_ignore", "group": "move", "do": [ { "say": "sa_ignored" } ] }
+      ]
+    },
+    "locked_crate": {
+      "tags": ["cellar"],
+      "text": "sa_event_crate",
+      "choices": [
+        {
+          "id": "pry",
+          "label": { "text": "sa_choice_pry", "args": ["item.name"] },
+          "group": "tactics",
+          "uses": { "select": ["crowbar", "screwdriver"], "each": false },
+          "check": {
+            "chance": "80",
+            "success": [ { "say": { "text": "sa_pried", "tone": "good" } }, { "give_loot": "cellar_scraps" }, { "give_loot": "cellar_scraps" } ],
+            "failure": [ { "say": { "text": "sa_pry_noise", "tone": "bad" } }, { "fight": { "tag": "cellar" } } ]
+          }
+        },
+        { "id": "leave", "label": "sa_choice_leave_crate", "group": "move", "do": [ { "say": "sa_ignored" } ] }
+      ]
+    }
+  },
+
+  "rooms": {
+    "pump_room": {
+      "tags": ["cellar"],
+      "text": "sa_room_pump",
+      "enter": [ { "fight": { "tag": "cellar" } } ],
+      "interactions": [
+        {
+          "id": "search_pump", "label": "sa_action_search", "group": "explore", "once": true,
+          "check": { "chance": "60", "success": [ { "give_loot": "cellar_scraps" } ], "failure": [ { "say": "sa_nothing" } ] }
+        }
+      ]
+    },
+    "drain": {
+      "tags": ["cellar"],
+      "text": "sa_room_drain",
+      "enter": [ { "event": { "tag": "cellar" } } ]
+    },
+    "store_room": {
+      "tags": ["cellar"],
+      "text": "sa_room_store",
+      "enter": [
+        { "random": [
+          { "weight": 1, "do": [ { "fight": { "tag": "cellar" } } ] },
+          { "weight": 2, "do": [ { "event": "locked_crate" } ] }
+        ] }
+      ]
+    },
+    "office": {
+      "tags": ["final"],
+      "text": "sa_room_office",
+      "enter": [ { "fight": { "from": ["foreman"], "won": [ { "say": { "text": "sa_foreman_down", "tone": "good" } } ] } } ],
+      "interactions": [
+        { "id": "claim", "label": "sa_action_claim", "group": "explore", "when": "run.boss_down", "do": [ { "give_loot": "cellar_scraps" }, { "leave": "cleared" } ] }
+      ]
+    }
+  },
+
+  "kits": {
+    "cellar_nerves": {
+      "on": {
+        // Morale written as data: when someone falls, the humans left may break.
+        "defeated": [
+          { "for_each": {
+            "in": "others",
+            "where": { "all": [ { "has_tag": { "tag": "human" } }, { "not": { "has_tag": { "tag": "boss" } } }, { "chance": 25 } ] },
+            "do": [ { "intent": { "who": "target", "id": "expedition_framework:flee" } } ]
+          } }
+        ],
+        "knocked_out": [ { "lose_items": 50 } ]
+      }
+    }
+  },
+
+  "areas": {
+    "flooded_cellar": {
+      "title": "sa_area_title",
+      "ambience": "dumping_ground",
+      "player": { "hp": 24, "dodge": 10 },
+      "kits": [
+        "expedition_framework:explore",
+        "expedition_framework:firearms",
+        "expedition_framework:melee",
+        "expedition_framework:medicine",
+        "cellar_nerves"
+      ],
+      "layout": [
+        { "tag": "cellar", "count": "1d2 + 1" },
+        { "room": "office" }
+      ]
+    }
+  }
+}

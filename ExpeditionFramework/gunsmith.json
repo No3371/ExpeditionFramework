@@ -1,0 +1,20 @@
+// Gunsmith Expansion (gunsmith_expansion) guns. main.json loads this only when that mod is installed and enabled.
+{
+  "item_stats": {
+    "gsx_pocket_pistol": { "capacity": 5 },
+    "gsx_service_10": { "capacity": 7 },
+    "gsx_compact_smg": { "capacity": 8 },
+    "gsx_carbine": { "capacity": 10 },
+    "gsx_malorian": { "capacity": 6 },
+    "gsx_slug_gun": { "capacity": 2 },
+    "gsx_hand_cannon": { "capacity": 6 },
+    "gsx_gilded_pistol": { "capacity": 6 },
+    "gsx_snub_revolver": { "capacity": 5 },
+
+    "gsx_mag_10_ext": { "capacity_bonus": 4 },
+
+    // Built less-lethal. A gun converted with the conversion kit keeps the tag, since data cannot see the kit.
+    "gsx_ll_pistol": { "capacity": 6, "tags": ["non_lethal"] },
+    "gsx_riot_gun": { "capacity": 4, "tags": ["non_lethal"] }
+  }
+}

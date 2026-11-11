@@ -1,0 +1,53 @@
+ef_player,You
+ef_found,You found: {0}
+ef_lost,Lost in the dark: {0}
+ef_leave,Leave
+ef_outcome_left,You head back while you still can.
+ef_outcome_cleared,Nothing left here to take. You head home.
+ef_outcome_knocked_out,Everything goes black.
+ef_panel_title,{0} - room {1}/{2}
+ef_status_hp,Health: {0}/{1}
+ef_status_turn,Turn {0}
+ef_status_effects,Affected by: {0}
+ef_enemy_line,{0} {1}/{2} - {3}
+ef_group_explore,Explore
+ef_group_attack,Attack
+ef_group_tactics,Tactics
+ef_group_supplies,Supplies
+ef_group_move,Move
+ef_status_bleeding,Bleeding
+ef_bleed_tick,Blood runs down your side.
+ef_intent_surprised,caught off guard
+ef_intent_staggered,reeling
+ef_intent_strike,about to attack
+ef_intent_wind_up,winding up
+ef_intent_heavy_strike,about to hit hard
+ef_intent_flee,looking for a way out
+ef_do_surprised,{0} scrambles to react.
+ef_do_staggered,{0} can't recover in time.
+ef_do_strike_hit,{0} connects.
+ef_do_strike_miss,{0} misses you.
+ef_tell_wind_up,{0} draws back for a big one.
+ef_do_wind_up,{0} sets their feet.
+ef_do_heavy_strike,{0} lands a brutal hit.
+ef_do_flee,{0} bolts into the dark.
+ef_action_press_on,Press on
+ef_action_head_home,Head home
+ef_action_shoot,Shoot {1} with {0} ({2}%)
+ef_action_reload,Reload {0}
+ef_action_melee,Hit {1} with {0} ({2}%)
+ef_action_punch,Punch {0} ({1}%)
+ef_action_heal,Use {0}
+ef_shoot_hit,Your shot hits {0}.
+ef_shoot_miss,Your shot goes wide of {0}.
+ef_melee_hit,You connect with {0}.
+ef_melee_miss,{0} slips your swing.
+ef_reloaded,You reload {0}.
+ef_healed,You patch yourself up with {0}.
+ef_roll_vs,[d{4} {0}{1}={2} vs {3}]
+ef_roll,[d{1} {0}]
+ef_log,What happened
+ef_actions,What do you do?
+ef_trade_deal,Open the deal
+ef_trade_finish,Done trading
+ef_hands_title,In hand
