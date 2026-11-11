@@ -294,7 +294,10 @@ namespace ExpeditionFramework.Core
 
         // ---- IRun ----
 
-        public int Roll(int sides) => sides <= 0 ? 0 : roll(sides);
+        // While the UI asks what to show, dice read as 1 and variants as the first, like MapContext: the game redraws every
+        // half second, so real rolls here would flicker labels and use up the run's randomness.
+        private int rendering;
+        public int Roll(int sides) => sides <= 0 ? 0 : rendering > 0 ? 1 : roll(sides);
 
         /// <summary>A die for a check. On a d20 the area's luck rule can reroll a low result, or spoil a high one.</summary>
         public int RollCheck(int sides)
@@ -313,6 +316,9 @@ namespace ExpeditionFramework.Core
             if (luck < 0 && result >= area.Luck.High && Roll(100) <= -luck) return Roll(20);
             return result;
         }
+
+        /// <summary>The run.* names the engine answers itself. Writing one would only shadow it in the vars, which nothing reads.</summary>
+        public static readonly string[] EngineVars = { "depth", "rooms", "rooms_left", "turn", "enemies", "credits", "ground", "scheduled" };
 
         public int Get(string variable)
         {
@@ -770,6 +776,13 @@ namespace ExpeditionFramework.Core
 
         public List<RunOption> Options()
         {
+            rendering++;
+            try { return BuildOptions(); }
+            finally { rendering--; }
+        }
+
+        private List<RunOption> BuildOptions()
+        {
             var options = new List<RunOption>();
             if (Over || Trading) return options;
             EnsureFocus();
@@ -972,11 +985,25 @@ namespace ExpeditionFramework.Core
         /// <summary>The info window's title: the area's own line if it has one, otherwise a default around the area's name.</summary>
         public string PanelTitle(string areaName)
         {
+            rendering++;
+            try { return BuildPanelTitle(areaName); }
+            finally { rendering--; }
+        }
+
+        private string BuildPanelTitle(string areaName)
+        {
             return area.Hud?.Title != null ? Lines.Render(Lines.Choose(area.Hud.Title, root), root) : FrameworkText("ef_panel_title", areaName, depth, rooms.Count);
         }
 
         /// <summary>What the info window shows right now, as rows of tinted pieces. An empty row is a separator.</summary>
         public List<List<HudSpan>> Hud()
+        {
+            rendering++;
+            try { return BuildHud(); }
+            finally { rendering--; }
+        }
+
+        private List<List<HudSpan>> BuildHud()
         {
             HudDef hud = area.Hud;
             var rows = new List<List<HudSpan>>();

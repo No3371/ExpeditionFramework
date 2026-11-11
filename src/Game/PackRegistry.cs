@@ -87,9 +87,10 @@ namespace ExpeditionFramework.Game
                 (InstanceOf(pack) as IExpeditionExtension)?.RegisterExpeditions(registry.For(pack));
                 set.Add(pack, MainFile, file => ModHelper.ReadModFileText(pack, file));
             }
-            Content content = set.Compile(out Dictionary<string, List<string>> problems);
+            Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
             foreach (string pack in packs)
             {
+                LogWarnings(warnings, pack);
                 if (problems.TryGetValue(pack, out List<string> list) && list.Count > 0)
                 {
                     foreach (string problem in list) ModEntry.Log.Warning(problem);
@@ -107,7 +108,15 @@ namespace ExpeditionFramework.Game
             {
                 foreach (string problem in other.Value) ModEntry.Log.Warning(problem);
             }
+            foreach (string other in warnings.Keys.Where(p => !packs.Contains(p))) LogWarnings(warnings, other);
             ModEntry.Log.Log("Expedition packs: " + string.Join(", ", packs));
+        }
+
+        // Warnings are logged but never keep a pack's areas out.
+        private static void LogWarnings(Dictionary<string, List<string>> warnings, string pack)
+        {
+            if (!warnings.TryGetValue(pack, out List<string> notes)) return;
+            foreach (string note in notes) ModEntry.Log.Warning("warning: " + note);
         }
     }
 }

@@ -106,7 +106,11 @@ namespace ExpeditionFramework.Api
         string Pick(IScope scope);
     }
 
-    /// <summary>The arguments of one effect or condition in a data file. A non-object argument is available as "value".</summary>
+    /// <summary>
+    /// The arguments of one effect or condition in a data file. A non-object argument is available as "value".
+    /// Keys an effect never asks for while compiling are reported as warnings, so read every key before returning the
+    /// effect. A bare true ({"my:effect": true}) counts as no arguments.
+    /// </summary>
     public interface ISpec
     {
         string PackId { get; }
@@ -118,6 +122,9 @@ namespace ExpeditionFramework.Api
         Condition Condition(string key);
         ItemFilter Items(string key);
         void Error(string message);
+
+        /// <summary>Reports a likely mistake at this spec's place without stopping the pack loading.</summary>
+        void Warn(string message);
 
         /// <summary>The text at key, reporting a problem if it's missing.</summary>
         string Require(string key);

@@ -71,7 +71,24 @@ namespace ExpeditionFramework.Core
         {
             r.Conditions["all"] = c => Compose(c, parts => s => parts.All(p => p(s)));
             r.Conditions["any"] = c => Compose(c, parts => s => parts.Any(p => p(s)));
-            r.Conditions["not"] = c => { Condition inner = c.Condition("value"); return s => !inner(s); };
+            r.Conditions["not"] = c =>
+            {
+                var spec = (PackLoader.Spec)c;
+                if (c.Has("value"))
+                {
+                    Condition inner = c.Condition("value");
+                    return s => !inner(s);
+                }
+                // {"not": null} and {"not": {}} name no condition; without this they'd surface as a confusing "unknown condition value".
+                if (spec.Args.Count == 0 || spec.Args.ContainsKey("value"))
+                {
+                    c.Error("needs a condition");
+                    return s => false;
+                }
+                // {"not": {"scene": "combat"}} arrives as the condition's own fields, not under "value".
+                Condition whole = spec.WholeCondition();
+                return s => !whole(s);
+            };
             r.Conditions["chance"] = c => { Value v = c.Value("value", 0); return s => s.Run.Roll(100) <= v(s); };
             r.Conditions["has_tag"] = c =>
             {
@@ -87,7 +104,17 @@ namespace ExpeditionFramework.Core
             };
             r.Conditions["carrying"] = c =>
             {
-                ItemFilter filter = c.Items("value");
+                var spec = (PackLoader.Spec)c;
+                ItemFilter filter;
+                if (c.Has("value")) filter = c.Items("value");
+                else if (spec.Args.Count == 0 || spec.Args.ContainsKey("value"))
+                {
+                    // Without this, a missing filter would quietly match any item.
+                    c.Error("needs an item filter");
+                    return s => false;
+                }
+                // {"carrying": {"all": [...]}} arrives as the filter's own fields, not under "value".
+                else filter = spec.WholeItems();
                 return s => s.Run.Inventory.Items.Any(i => filter(i, s));
             };
             r.Conditions["scene"] = c => { string scene = c.Require("value"); return s => s.Run.Scene == scene; };
@@ -318,6 +345,11 @@ namespace ExpeditionFramework.Core
                 c.Error("\"var\" must be a path like run.alarm or self.armor");
                 return s => { };
             }
+            if (path.StartsWith("run.") && Array.IndexOf(ExpeditionRun.EngineVars, path.Substring(4)) >= 0)
+            {
+                c.Error(path + " is kept by the engine; set and add can't change it");
+                return s => { };
+            }
             Value value = c.Value("value", 0);
             return s => write(s, apply(read(s), value(s)));
         }
@@ -328,6 +360,9 @@ namespace ExpeditionFramework.Core
             {
                 ILine line = c.InlineLine();
                 string tone = c.Text("tone", "plain");
+                // Warned through the concrete Spec, not ISpec.Warn: a pack shipping an older ExpeditionFramework.Api.dll that
+                // wins the load has no ISpec.Warn, and calling it would throw MissingMethodException mid-compile.
+                if (Array.IndexOf(Schema.Tones, tone) < 0) ((PackLoader.Spec)c).Warn(PackLoader.UnknownTone(tone, Schema.Tones));
                 return s => s.Run.Say(tone, line, s);
             };
             r.Effects["hint"] = c =>
@@ -568,6 +603,12 @@ namespace ExpeditionFramework.Core
                 Effect none = c.Effect("else");
                 return s =>
                 {
+                    if (s.Run.Scene != "combat")
+                    {
+                        s.Run.Log("bad", "spawn does nothing outside a fight");
+                        none(s);
+                        return;
+                    }
                     IReadOnlyList<string> open = source(s);
                     if (open.Count == 0)
                     {

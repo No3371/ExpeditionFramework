@@ -20,7 +20,11 @@ MyMod/
 
 Ids belong to the pack that defines them. Write `rat` inside your pack and `other_pack:rat` to use someone else's.
 Problems are logged with their location, such as `my_mod/ExpeditionFramework/main.json.rooms.a.enter[0]: unknown effect "nope"`.
-A pack with any problem adds no areas.
+Problems (broken structure, values of the wrong type, references to things that don't exist) stop a pack's areas loading.
+Warnings are likely mistakes that don't: keys a definition doesn't have (the message lists the ones it does), arguments an
+effect or condition never reads, unknown tones, `#tags` no item can have, and `weight`, `when` or `tags` on kinds that
+ignore them (only rooms, events, encounters and enemies are picked by weight, condition or tag). They are logged as
+`warning: …` and the pack still loads.
 
 ### Data for other mods
 
@@ -154,14 +158,24 @@ the same thing, and it answers each question separately:
 
 If an interaction has a `check` with a `chance`, the percent is added as the label's last argument.
 
+Labels, `when`/`where` on buttons, previews and HUD lines are drawn without rolling: dice count as 1 and `variants`
+show the first text. So a button whose `when` uses `chance` always shows, and one that needs a high roll never shows
+(the gate isn't checked again when pressed). Roll into a `run.` var when entering the room and test that instead.
+
 ## Vocabulary
 
 **Expressions** go wherever a number or condition is expected: `60 + item.accuracy * 5 - target.dodge`, `2d6+1`,
 `self.hp <= 5 && run.depth >= 2`. Paths start with `self`, `target`, `player`, `item`, `with` (the second item of a pair),
-`arg`, `val` (a named value), `game` or `run`. `run` also has `depth`, `rooms`, `rooms_left`, `turn`, `enemies` and
-`credits`. Unknown names read as 0, so any new stat or variable just works. Functions include `carried`, `best_item`,
+`arg`, `val` (a named value), `game` or `run`. `run` also has `depth`, `rooms`, `rooms_left`, `turn`, `enemies`,
+`credits`, `ground` and `scheduled`, kept by the engine: `set` or `add` on them, or an area's `vars` naming them, is a
+problem. Unknown names read as 0, so any new stat or variable just works. Functions include `carried`, `best_item`,
 `intel`, `list_size`, `mod`, `min`, `max`, `clamp`, `dice`, `scheduled` and `count_enemies`, `any_enemy`, `all_enemies`,
 `sum_enemies`, `max_enemies`.
+
+The engine also sets `run` variables for data to read: `won` (after a fight), `last_damage`, `healed`, `given` (1 if
+the last give worked), `found_items`, `natural` and `total` (the last check or roll), `trade_cash` and `trade_bought`,
+`cart_taken`, `cleared_ground`, and `outcome_<outcome>` when the run ends. Texts: `run.$lost`, `run.$taken`,
+`run.$scheduled` and `run.$pick`.
 
 `game` reads the player outside the run: `game.luck`, `game.roll_luck`, `game.wounds`, `game.maimed`.
 
@@ -175,8 +189,15 @@ If an interaction has a `check` with a `chance`, the percent is added as the lab
 | Items | `consume`, `reload`, `equip`, `pick_item`, `give_item`, `give_loot`, `credits`, `lose_items`, `lose_found`, `take_back`, `clear_ground` |
 | Trading | `trade`, `new_cart`, `take_cart` |
 
+`spawn` outside a fight does nothing and runs its `else`.
+
 **Conditions** are expressions, lists, or: `all`, `any`, `not`, `chance`, `has_tag`, `has_status`, `carrying`, `scene`,
-`intent_interruptible`, `fits`, `credits_at_least`.
+`intent_interruptible`, `fits`, `credits_at_least`. `not` and `carrying` take their condition or item filter directly,
+`{"not": {"scene": "combat"}}`, or under `value`; given nothing (`null` or `{}`) they are a problem.
+
+Effects and conditions that take nothing are written with `true`, like `{"next_room": true}`.
+
+**Tones** for lines, intents and `say`: `good`, `bad`, `dim`, `heading`, `enemy`, `hint`, `plain`. Intel cards: `good`, `bad`, `mixed`.
 
 **Hooks** under `on`: `run_start`, `room_enter`, `combat_start`, `turn_start`, `turn_end`, `combat_end`, `damaged`,
 `defeated`, `knocked_out`, `after_action`, `run_end`, plus any a C# mod declares. Self is the one it happened to; Target is the other party.
@@ -221,7 +242,8 @@ public void RegisterExpeditions(IExpeditionRegistrar registrar)
 }
 ```
 
-An `IScope` gives `Run`, `Self`, `Target`, `Item` and `Paired`. An `IRun` has variables, dice, log and damage directly, and:
+An `IScope` gives `Run`, `Self`, `Target`, `Item` and `Paired`. An `IRun` has variables, dice, log and damage directly.
+`Set` on a name the engine keeps does nothing: `Get` keeps answering from the engine. An `IRun` also has:
 
 | Part | What it does |
 |---|---|
@@ -232,6 +254,12 @@ An `IScope` gives `Run`, `Self`, `Target`, `Item` and `Paired`. An `IRun` has va
 
 `IItem.Handle` is the game's own object: a `GameItem` for a weapon, a `List<GameItem>` for a stack of anything else.
 Ids passed at run time are qualified, like `my_mod:rat`. `spec.Ref` qualifies an id from data and checks that it exists.
+
+`spec.Error` reports a problem at the spec's place; `spec.Warn` reports a warning there and the pack still loads.
+Read every key while compiling, before returning the effect: keys not asked for by the time the compiler returns are
+reported as unused. A bare `true` (`{"my_mod:ping": true}`) counts as no arguments, and a spec you called `Error` on isn't
+reported. `ISpec` only ever gains members; the framework's own `ExpeditionFramework.Api.dll` must be the copy that loads —
+a pack shipping an older copy that wins the load breaks calls to newer members such as `Warn`.
 
 | Decision | Change | Scope |
 |---|---|---|
@@ -263,3 +291,13 @@ dotnet run -c Release --project tests/Sim
 ```
 
 Validates the content, tests the compiler's error reporting, then plays the sample area with random choices. `SIM_RUNS` sets the count.
+
+```bash
+dotnet run -c Release --project tests/Sim -- lint ../MyPack [--mod gunsmith_expansion] [--strict]
+```
+
+Checks a pack folder without the game: loads the framework and the pack as the game would, prints each problem as `ERROR`
+and each warning as `WARN`, reports text keys missing from `Localization/en.csv`, and compares every other locale CSV with
+`en.csv` (missing or extra keys, different `{0}` placeholders). It fits a pack that depends only on the framework: `--mod`
+answers `mod(...)` and include `requires` checks but loads no other pack. Exits 1 on errors (or warnings with `--strict`),
+2 on bad arguments, else 0.

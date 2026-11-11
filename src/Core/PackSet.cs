@@ -30,7 +30,13 @@ namespace ExpeditionFramework.Core
         /// Compiles every pack. Patches are tried one pack at a time, in order; a pack's patches stay only if they add no
         /// problem anywhere. Problems are returned under the pack that caused them.
         /// </summary>
-        public Content Compile(out Dictionary<string, List<string>> problems)
+        public Content Compile(out Dictionary<string, List<string>> problems) => Compile(out problems, out _);
+
+        /// <summary>
+        /// As <see cref="Compile(out Dictionary{string, List{string}})"/>, also returning warnings under the pack being compiled
+        /// when each was found. Warnings never decide whether a patch is kept.
+        /// </summary>
+        public Content Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings)
         {
             var effects = new Dictionary<string, EffectCompiler>(registry.Effects);
             var conditions = new Dictionary<string, ConditionCompiler>(registry.Conditions);
@@ -59,6 +65,7 @@ namespace ExpeditionFramework.Core
                 list.AddRange(r.Value.Select(p => "  " + p));
                 best.Content.Problems.AddRange(list.Skip(list.Count - r.Value.Count - 1));
             }
+            warnings = best.Loader.WarningsByPack.ToDictionary(p => p.Key, p => new List<string>(p.Value));
             return best.Content;
         }
 

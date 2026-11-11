@@ -4,6 +4,7 @@
 > **Lead:** Opus 5.5 (redteam-projex subagent, dispatched by orchestrate-projex)
 > **Parent:** 2611120258-loader-loud-failures-plan.md
 > **Subject:** 2611120258-loader-loud-failures-plan.md + 2611120258-runtime-safety-fixes-plan.md, attacked as one pair (shared files, sequential execution) | **Related:** 2611120250-framework-expansion-synthesis-eval.md (upstream) | 2611120231-pack-schema-loader-expansion-explore.md | 2611120227-runtime-hooks-expr-expansion-explore.md
+> **Walkthroughs:** 2611120258-loader-loud-failures-walkthrough.md | 2611120258-runtime-safety-fixes-walkthrough.md (both subject plans closed 2026-11-12 → report closed)
 
 Evidence base: read-only inspection of `src/Core/{PackLoader,Builtins,ExpeditionRun,ExpeditionRun.Api,PackSet,Model,Expr}.cs`, `src/Game/{PackRegistry,ExpeditionLocation,GameBridge,IntelCards,ItemReader}.cs`, both sims, framework/sample/NER JSON (JSONC parsed by throwaway scripts). No code changed; sims not run.
 

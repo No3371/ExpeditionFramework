@@ -335,6 +335,8 @@ namespace ExpeditionFramework.Core
         public RunListeners Listeners = new RunListeners();
 
         public readonly List<string> Problems = new List<string>();
+        /// <summary>Likely mistakes that don't stop the pack loading, such as a key nothing reads.</summary>
+        public readonly List<string> Warnings = new List<string>();
         public readonly HashSet<(string Pack, string Key)> TextKeys = new HashSet<(string, string)>();
     }
 

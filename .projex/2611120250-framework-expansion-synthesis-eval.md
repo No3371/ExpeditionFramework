@@ -5,6 +5,7 @@
 > **Parent:** Orchestrator
 > **Related Projex:** 2611120231-pack-schema-loader-expansion-explore.md | 2611120227-runtime-hooks-expr-expansion-explore.md | 2611120227-persistence-game-integration-expansion-explore.md | 2611120229-ui-presentation-expansion-explore.md | 2611120231-authoring-tooling-sim-testing-expansion-explore.md | 2611120240-content-expansion-synthesis-eval.md (NightExpeditionsReborn)
 > **Spawned Plans:** 2611120258-loader-loud-failures-plan.md | 2611120258-runtime-safety-fixes-plan.md (Phase 1)
+> **Walkthroughs:** 2611120258-loader-loud-failures-walkthrough.md | 2611120258-runtime-safety-fixes-walkthrough.md (Phase 1 complete)
 
 ---
 

@@ -1,10 +1,13 @@
 # Runtime Safety Fixes — Shared-Effect Leak, Engine Vars, Spawn, Give, Render-Time Dice
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Author:** Opus 5.5 (plan-projex subagent, dispatched by orchestrate-projex)
 > **Source:** Direct request ("Plan hardening first") — Phase 1 of 2611120250-framework-expansion-synthesis-eval.md § Recommended Sequence (Runtime R13 + § Incidental Bugs)
 > **Parent:** 2611120250-framework-expansion-synthesis-eval.md
 > **Related Projex:** 2611120258-loader-loud-failures-plan.md (sibling, Phase 1 loader half — executes **after** this plan) | 2611120227-runtime-hooks-expr-expansion-explore.md (R13, silent traps) | 2611120448-phase1-hardening-plans-redteam.md | 2611120507-phase1-hardening-plans-blueteam.md (dispositions applied 2026-11-12)
+> **Completed:** 2026-11-12
+> **Walkthrough:** 2611120258-runtime-safety-fixes-walkthrough.md
+> **Log:** 2611120258-runtime-safety-fixes-log.md
 > **Worktree:** No — NightExpeditionsReborn's sim compiles `../../../ExpeditionFramework/src/Core` by relative path, so it only tests the main checkout.
 
 ---

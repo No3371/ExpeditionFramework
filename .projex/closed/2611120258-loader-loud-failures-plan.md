@@ -1,11 +1,14 @@
 # Loader Loud Failures — Warnings Channel, Schema Shapes, Spec Read Tracking, Lint Command
 
-> **Status:** Ready
+> **Status:** Complete
 > **Author:** Opus 5.5 (plan-projex subagent, dispatched by orchestrate-projex)
 > **Source:** Direct request ("Plan hardening first") — Phase 1 of 2611120250-framework-expansion-synthesis-eval.md § Recommended Sequence
 > **Parent:** 2611120250-framework-expansion-synthesis-eval.md
 > **Related Projex:** 2611120258-runtime-safety-fixes-plan.md (sibling, Phase 1 runtime half — executes **before** this plan) | 2611120448-phase1-hardening-plans-redteam.md | 2611120507-phase1-hardening-plans-blueteam.md (dispositions applied 2026-11-12) | 2611120231-pack-schema-loader-expansion-explore.md (E1, E2, E9, E10) | 2611120231-authoring-tooling-sim-testing-expansion-explore.md (A) | 2611120229-ui-presentation-expansion-explore.md (P-3) | 2611120227-runtime-hooks-expr-expansion-explore.md
 > **Worktree:** No — NightExpeditionsReborn's sim compiles `../../../ExpeditionFramework/src/Core` by relative path, so it only tests the main checkout. Worktree mode would make the acceptance consumer test the wrong tree.
+> **Completed:** 2026-11-12
+> **Walkthrough:** 2611120258-loader-loud-failures-walkthrough.md
+> **Log:** 2611120258-loader-loud-failures-log.md
 
 ---
 

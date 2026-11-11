@@ -136,6 +136,7 @@ namespace ExpeditionFramework.Core
         private readonly List<(string Pool, string Kind, string At, string Pack)> poolUses = new List<(string, string, string, string)>();
         private readonly List<(string Pack, List<(string At, Node Root)> Files)> pending = new List<(string, List<(string, Node)>)>();
         private readonly Dictionary<string, List<string>> problemsByPack = new Dictionary<string, List<string>>();
+        private readonly Dictionary<string, List<string>> warningsByPack = new Dictionary<string, List<string>>();
         private readonly List<string> patchers = new List<string>();
         private string compilingValue;
         private string folder = "";
@@ -162,6 +163,9 @@ namespace ExpeditionFramework.Core
 
         /// <summary>Each problem so far, under the pack that caused it. A patch's problems belong to the pack that wrote it.</summary>
         public IReadOnlyDictionary<string, List<string>> ProblemsByPack => problemsByPack;
+
+        /// <summary>Each warning so far, under the pack being compiled when it was found. Warnings never stop a pack loading.</summary>
+        public IReadOnlyDictionary<string, List<string>> WarningsByPack => warningsByPack;
 
         /// <summary>Loads one pack on its own: <see cref="Add"/> then <see cref="CompileAll"/>.</summary>
         public void Load(string pack, string mainFile, Func<string, string> read)
@@ -460,6 +464,8 @@ namespace ExpeditionFramework.Core
 
         private Effect CompileSharedCall(Spec call, string name, List<KeyValuePair<string, object>> parameters, Effect[] body, string pack, string at)
         {
+            // Every argument is checked against the declared params just below, and an unknown one is a problem there.
+            call.MarkAllRead();
             var known = new HashSet<string>(parameters.Select(p => p.Key));
             bool bare = call.Has("value") && !known.Contains("value");
             if (bare && parameters.Count == 0) call.Error(name + " takes no arguments");
@@ -478,10 +484,17 @@ namespace ExpeditionFramework.Core
             {
                 var run = (ExpeditionRun)s.Run;
                 if (!run.EnterShared(name)) return;
-                var args = new Dictionary<string, int>();
-                foreach (KeyValuePair<string, Value> v in values) args[v.Key] = v.Value(s);
-                body[0](Scope.From(s).WithArgs(args));
-                run.LeaveShared();
+                try
+                {
+                    var args = new Dictionary<string, int>();
+                    foreach (KeyValuePair<string, Value> v in values) args[v.Key] = v.Value(s);
+                    body[0](Scope.From(s).WithArgs(args));
+                }
+                finally
+                {
+                    // Without this, every exception that passes through leaves the run one level closer to refusing all shared effects.
+                    run.LeaveShared();
+                }
             };
         }
 
@@ -555,6 +568,7 @@ namespace ExpeditionFramework.Core
                 CheckValueCycle(value);
             }
             valueUses.Clear();
+            knownItemTags = null;
         }
 
         private void CheckPool(string pool, string kind, string at)
@@ -597,6 +611,36 @@ namespace ExpeditionFramework.Core
             if (!problemsByPack.TryGetValue(current, out List<string> list)) problemsByPack[current] = list = new List<string>();
             list.Add(problem);
         }
+
+        internal void Warn(string at, string message)
+        {
+            string warning = at + ": " + message;
+            content.Warnings.Add(warning);
+            if (!warningsByPack.TryGetValue(current, out List<string> list)) warningsByPack[current] = list = new List<string>();
+            list.Add(warning);
+        }
+
+        // Unknown keys and unknown tones are warnings; a value of the wrong type is a problem. The reads that follow keep their
+        // old fallbacks, so a reported mistake never also stops the compile.
+        private void CheckShape(Node n, Shape shape, string at)
+        {
+            foreach (KeyValuePair<string, object> field in n)
+            {
+                string path = at + "." + field.Key;
+                if (!shape.Fields.TryGetValue(field.Key, out Field type))
+                {
+                    Warn(path, "unknown key, ignored (known: " + string.Join(", ", shape.Fields.Keys) + ")");
+                    continue;
+                }
+                if (field.Value == null) continue;
+                string wrong = Schema.Mismatch(type, field.Value);
+                if (wrong != null) Problem(path, wrong);
+                else if (type == Field.Tone && Array.IndexOf(Schema.Tones, (string)field.Value) < 0) Warn(path, UnknownTone((string)field.Value, Schema.Tones));
+                else if (type == Field.IntelTone && Array.IndexOf(Schema.IntelTones, (string)field.Value) < 0) Warn(path, UnknownTone((string)field.Value, Schema.IntelTones));
+            }
+        }
+
+        internal static string UnknownTone(string tone, string[] known) => "unknown tone \"" + tone + "\" (known: " + string.Join(", ", known) + ")";
 
         // A check that runs at Finish, charged to the pack being compiled now.
         private void Defer(Action check)
@@ -658,6 +702,7 @@ namespace ExpeditionFramework.Core
                 if (into.ContainsKey(id)) { Problem(path, "this id is already defined"); continue; }
                 if (!(entry.Value is Node raw)) { Problem(path, "must be an object"); continue; }
                 Node node = Extend(raw, pack, path);
+                CheckShape(node, Schema.Sections[key], path);
                 var def = new T { Id = id, Pack = pack };
                 def.Weight = Int(node, "weight", 1);
                 def.Tags = List(node, "tags").OfType<string>().ToArray();
@@ -707,6 +752,7 @@ namespace ExpeditionFramework.Core
 
         private void AddLootEntry(LootDef d, Node entry, string at)
         {
+            CheckShape(entry, Schema.LootEntry, at);
             var result = new LootEntry { Item = Str(entry, "item"), GameTable = Str(entry, "table"), Weight = Int(entry, "weight", 1) };
             if (Str(entry, "loot") != null) result.Loot = Ref(Str(entry, "loot"), "loot", d.Pack, at);
             if (entry.ContainsKey("when")) result.When = Condition(entry["when"], d.Pack, at + ".when");
@@ -723,6 +769,7 @@ namespace ExpeditionFramework.Core
             {
                 string path = at + ".stock[" + index++ + "]";
                 if (!(e is Node entry)) { Problem(path, "must be an object"); continue; }
+                CheckShape(entry, Schema.CartLine, path);
                 var line = new CartLine
                 {
                     Item = Str(entry, "item"),
@@ -780,6 +827,7 @@ namespace ExpeditionFramework.Core
             {
                 string path = at + "[" + index++ + "]";
                 if (!(e is Node entry)) { Problem(path, "must be an object"); continue; }
+                CheckShape(entry, Schema.BehaviorEntry, path);
                 var item = new BehaviorEntry
                 {
                     Weight = Int(entry, "weight", 1),
@@ -802,6 +850,7 @@ namespace ExpeditionFramework.Core
                 if (e is string id) d.Enemies.Add(Ref(id, "enemy", d.Pack, at + ".enemies"));
                 else if (e is Node entry && Str(entry, "id") != null)
                 {
+                    CheckShape(entry, Schema.EncounterEntry, at + ".enemies");
                     string enemy = Ref(Str(entry, "id"), "enemy", d.Pack, at + ".enemies");
                     for (int i = Int(entry, "count", 1); i > 0; i--) d.Enemies.Add(enemy);
                 }
@@ -844,6 +893,10 @@ namespace ExpeditionFramework.Core
             d.Player = Stats(n, "player", d.Pack, at);
             if (!d.Player.ContainsKey("hp")) Problem(at + ".player", "needs hp");
             d.Vars = Stats(n, "vars", d.Pack, at);
+            foreach (string name in d.Vars.Keys)
+            {
+                if (Array.IndexOf(ExpeditionRun.EngineVars, name) >= 0) Problem(at + ".vars." + name, "run." + name + " is kept by the engine; vars can't set it");
+            }
             foreach (KeyValuePair<string, object> pool in Map(n, "pools"))
             {
                 // Which kind of thing a pool holds depends on who uses it, so its ids are checked per use.
@@ -854,6 +907,7 @@ namespace ExpeditionFramework.Core
             if (n.ContainsKey("groups")) d.GroupOrder = List(n, "groups").OfType<string>().ToList();
             if (n.TryGetValue("luck", out object luck) && luck is Node l)
             {
+                CheckShape(l, Schema.Luck, at + ".luck");
                 d.Luck = new LuckRule { Percent = ValueOf(l.TryGetValue("value", out object lv) ? lv : 0d, d.Pack, at + ".luck.value"), Low = Int(l, "low", 5), High = Int(l, "high", 16) };
             }
             foreach (KeyValuePair<string, object> text in Map(n, "texts"))
@@ -877,6 +931,7 @@ namespace ExpeditionFramework.Core
             {
                 string path = at + ".layout[" + index++ + "]";
                 if (!(s is Node slot)) { Problem(path, "must be an object"); continue; }
+                CheckShape(slot, Schema.LayoutSlot, path);
                 d.Layout.Add(new LayoutSlot
                 {
                     Pool = RoomPool(slot, d.Pack, path),
@@ -889,12 +944,14 @@ namespace ExpeditionFramework.Core
 
         private PackingDef CompilePacking(Node n, string pack, string at)
         {
+            CheckShape(n, Schema.Packing, at);
             var result = new PackingDef { NoBackpack = Text(n, "no_backpack", pack, at, required: false), Card = Text(n, "card", pack, at, required: false) };
             int index = 0;
             foreach (object e in List(n, "needs"))
             {
                 string path = at + ".needs[" + index++ + "]";
                 if (!(e is Node need)) { Problem(path, "must be an object"); continue; }
+                CheckShape(need, Schema.PackingNeed, path);
                 result.Needs.Add(new PackingNeed
                 {
                     Items = Items(need.TryGetValue("items", out object items) ? items : null, pack, path + ".items"),
@@ -907,6 +964,7 @@ namespace ExpeditionFramework.Core
         private IntelSlot CompileIntel(Node n, AreaDef area, string at)
         {
             string pack = area.Pack;
+            CheckShape(n, Schema.Intel, at);
             var slot = new IntelSlot
             {
                 Id = Str(n, "id"),
@@ -926,12 +984,14 @@ namespace ExpeditionFramework.Core
 
         private HudDef CompileHud(Node n, string pack, string at)
         {
+            CheckShape(n, Schema.Hud, at);
             var hud = new HudDef { Title = LineOf(n, "title", pack, at, required: false) };
             int index = 0;
             foreach (object e in List(n, "rows"))
             {
                 string path = at + ".rows[" + index++ + "]";
                 if (!(e is Node row)) { Problem(path, "must be an object"); continue; }
+                CheckShape(row, Schema.HudRow, path);
                 var compiled = new HudRow { Separator = Bool(row, "separator", false) };
                 if (row.ContainsKey("when")) compiled.When = Condition(row["when"], pack, path + ".when");
                 int partIndex = 0;
@@ -939,6 +999,7 @@ namespace ExpeditionFramework.Core
                 hud.Rows.Add(compiled);
             }
             Node enemies = Map(n, "enemies");
+            if (n.ContainsKey("enemies")) CheckShape(enemies, Schema.HudEnemies, at + ".enemies");
             hud.Enemy = LineOf(enemies, "line", pack, at + ".enemies", required: true);
             hud.Pending = LineOf(enemies, "pending", pack, at + ".enemies", required: false) ?? hud.Enemy;
             hud.Clear = LineOf(enemies, "none", pack, at + ".enemies", required: false);
@@ -948,11 +1009,11 @@ namespace ExpeditionFramework.Core
 
         private HudPart CompileHudPart(object part, string pack, string at)
         {
-            var result = new HudPart { Line = LineFrom(part, pack, at) };
+            var result = new HudPart { Line = LineFrom(part, pack, at, Schema.HudPart) };
             if (part is Node node)
             {
                 if (node.ContainsKey("when")) result.When = Condition(node["when"], pack, at + ".when");
-                if (node.ContainsKey("each_item")) result.EachItem = UseOf(node["each_item"], pack, at + ".each_item");
+                if (node.ContainsKey("each_item")) result.EachItem = UseOf(node["each_item"], pack, at + ".each_item", checkShape: true);
             }
             return result;
         }
@@ -1042,9 +1103,11 @@ namespace ExpeditionFramework.Core
             return result;
         }
 
-        internal ItemUse UseOf(object node, string pack, string at)
+        // checkShape is false when the use is an effect's own arguments: those keys are the effect's, and its spec reports them.
+        internal ItemUse UseOf(object node, string pack, string at, bool checkShape)
         {
             if (!(node is Node u) || !u.ContainsKey("select")) return new ItemUse { Filter = Items(node, pack, at) };
+            if (checkShape) CheckShape(u, Schema.Use, at);
             var use = new ItemUse
             {
                 Filter = Items(u["select"], pack, at + ".select"),
@@ -1059,6 +1122,7 @@ namespace ExpeditionFramework.Core
 
         private Interaction CompileInteraction(Node n, string pack, string at, string defaultScene)
         {
+            CheckShape(n, Schema.Interaction, at);
             var i = new Interaction
             {
                 Id = Str(n, "id") ?? at,
@@ -1081,11 +1145,12 @@ namespace ExpeditionFramework.Core
             if (n.ContainsKey("where")) i.Where = Condition(n["where"], pack, at + ".where");
             if (n.TryGetValue("uses", out object uses))
             {
-                i.Uses = UseOf(uses, pack, at + ".uses");
-                if (uses is Node u && u.ContainsKey("with")) i.With = UseOf(u["with"], pack, at + ".uses.with");
+                i.Uses = UseOf(uses, pack, at + ".uses", checkShape: true);
+                if (uses is Node u && u.ContainsKey("with")) i.With = UseOf(u["with"], pack, at + ".uses.with", checkShape: true);
             }
             if (n.TryGetValue("confirm", out object confirm) && confirm is Node c)
             {
+                CheckShape(c, Schema.Confirm, at + ".confirm");
                 i.Confirm = new ConfirmDef
                 {
                     When = c.ContainsKey("when") ? Condition(c["when"], pack, at + ".confirm.when") : null,
@@ -1118,6 +1183,7 @@ namespace ExpeditionFramework.Core
         {
             if (check.ContainsKey("chance")) return ValueOf(check["chance"], pack, at + ".chance");
             if (!check.ContainsKey("die")) return null;
+            // No ReportUnread here: the same arguments compile as the check effect, which reports them once.
             Builtins.DieCheck die = Builtins.DieCheck.From(new Spec(this, pack, at, check));
             return die.Percent;
         }
@@ -1195,15 +1261,19 @@ namespace ExpeditionFramework.Core
                 if (required) Problem(at, "needs \"" + key + "\"");
                 return null;
             }
-            return LineFrom(v, pack, at + "." + key);
+            return LineFrom(v, pack, at + "." + key, Schema.Line);
         }
 
-        /// <summary>A line is a text key, {text, args, variants, tone}, or {cases: [{when, ...}]}. "key" means the same as "text".</summary>
-        internal Line LineFrom(object v, string pack, string at)
+        /// <summary>
+        /// A line is a text key, {text, args, variants, tone}, or {cases: [{when, ...}]}. "key" means the same as "text".
+        /// The shape is what keys an object line may have; null when its keys belong to an effect that reports them itself.
+        /// </summary>
+        internal Line LineFrom(object v, string pack, string at, Shape shape)
         {
             if (v is string s) return new Line { Text = TextKey(s, pack, at) };
             if (v is Node n)
             {
+                if (shape != null) CheckShape(n, shape, at);
                 if (n.ContainsKey("cases")) return CasesLine(n, pack, at);
                 string text = Str(n, "text") ?? Str(n, "key");
                 if (text != null)
@@ -1227,7 +1297,7 @@ namespace ExpeditionFramework.Core
             {
                 string path = at + ".cases[" + index++ + "]";
                 if (!(e is Node entry)) { Problem(path, "must be an object"); continue; }
-                Line inner = LineFrom(entry, pack, path);
+                Line inner = LineFrom(entry, pack, path, Schema.Case);
                 if (inner.Tone == null) inner.Tone = line.Tone;
                 line.Cases.Add(new LineCase { When = entry.ContainsKey("when") ? Condition(entry["when"], pack, path + ".when") : null, Line = inner });
             }
@@ -1279,7 +1349,7 @@ namespace ExpeditionFramework.Core
                 ItemFilter filter = Items(n["items"], pack, at + ".items");
                 return s => string.Join(", ", s.Run.Inventory.Items.Where(i => filter(i, s)).Select(i => i.Count > 1 ? i.Name + " x" + i.Count : i.Name));
             }
-            Line line = LineFrom(n, pack, at);
+            Line line = LineFrom(n, pack, at, Schema.Line);
             return s => Lines.Render(line, s);
         }
 
@@ -1371,7 +1441,10 @@ namespace ExpeditionFramework.Core
                     Problem(at, "unknown effect \"" + only.Key + "\"");
                     return s => { };
                 }
-                return compiler(new Spec(this, pack, at + "." + only.Key, only.Value)) ?? (s => { });
+                var spec = new Spec(this, pack, at + "." + only.Key, only.Value);
+                Effect compiled = compiler(spec) ?? (s => { });
+                spec.ReportUnread();
+                return compiled;
             }
             Problem(at, "an effect is a list, or an object with exactly one effect name");
             return s => { };
@@ -1402,7 +1475,10 @@ namespace ExpeditionFramework.Core
                     Problem(at, "unknown condition \"" + only.Key + "\"");
                     return s => false;
                 }
-                return compiler(new Spec(this, pack, at + "." + only.Key, only.Value)) ?? (s => false);
+                var spec = new Spec(this, pack, at + "." + only.Key, only.Value);
+                Condition compiled = compiler(spec) ?? (s => false);
+                spec.ReportUnread();
+                return compiled;
             }
             Problem(at, "a condition is an expression, a list, or an object with exactly one condition name");
             return s => false;
@@ -1416,6 +1492,7 @@ namespace ExpeditionFramework.Core
                 if (text.StartsWith("#"))
                 {
                     string tag = text.Substring(1);
+                    Defer(() => { if (!KnownItemTags().Contains(tag)) Warn(at, "no item has the tag " + tag + " (not a game tag, item group or item_stats tag)"); });
                     return (item, s) => item.HasTag(tag);
                 }
                 return (item, s) => item.Id == text;
@@ -1454,10 +1531,30 @@ namespace ExpeditionFramework.Core
 
         private static ItemFilter Any(List<ItemFilter> filters) => (item, s) => filters.Any(f => f(item, s));
 
+        // Every tag an item can have at run time, built once per Finish, when every pack's groups and stats exist.
+        private HashSet<string> knownItemTags;
+
+        // item_stats "#tag" keys are left out on purpose: they only apply to items that already have the tag, so counting them
+        // would let the same misspelling in a filter and an item_stats key hide each other.
+        private HashSet<string> KnownItemTags() => knownItemTags ??= new HashSet<string>(Schema.EngineItemTags
+            .Concat(content.ItemGroups.Values.SelectMany(g => g))
+            .Concat(content.ItemStats.Values.SelectMany(s => s.Tags)));
+
         internal sealed class Spec : ISpec
         {
             private readonly PackLoader loader;
             internal readonly Node Args;
+
+            // The keys a compiler asked for. Whatever it never asked for by the time it returns is reported as unused.
+            private readonly HashSet<string> read = new HashSet<string>();
+            private readonly List<Spec> children = new List<Spec>();
+
+            // {"next_room": true} is how content says "no arguments"; the "value" this wraps it in is never meant to be read.
+            // Only a literal true is exempt: {"next_room": 3}, false or a string still warn, and an explicit {"value": true} was typed by the author.
+            private readonly bool bareTrue;
+
+            // Compilers that reject an argument return before reading the rest; reporting those as unused would read as a second mistake.
+            private bool errored;
 
             public string PackId { get; }
             public string Path { get; }
@@ -1469,10 +1566,53 @@ namespace ExpeditionFramework.Core
                 PackId = pack;
                 Path = path;
                 Args = args as Node ?? new Node { { "value", args } };
+                bareTrue = args is bool b && b;
             }
 
-            public bool Has(string key) => Args.TryGetValue(key, out object v) && v != null;
-            public string Text(string key, string fallback = null) => Str(Args, key, fallback);
+            private void Mark(params string[] keys) => read.UnionWith(keys);
+
+            internal void MarkAllRead() => read.UnionWith(Args.Keys);
+
+            /// <summary>Warns about each argument the compiler never asked for, then lets each entry spec do the same.</summary>
+            internal void ReportUnread()
+            {
+                if (!errored)
+                {
+                    foreach (KeyValuePair<string, object> arg in Args)
+                    {
+                        if (arg.Value == null || read.Contains(arg.Key)) continue;
+                        if (bareTrue && arg.Key == "value") continue;
+                        loader.Warn(Path + "." + arg.Key, "not used here (misspelled, or not a field of this effect or condition)");
+                    }
+                }
+                foreach (Spec child in children) child.ReportUnread();
+            }
+
+            /// <summary>All of the arguments read as one condition, for built-ins whose argument is a condition.</summary>
+            internal Condition WholeCondition()
+            {
+                MarkAllRead();
+                return loader.Condition(Args, PackId, Path);
+            }
+
+            /// <summary>All of the arguments read as one item filter, for built-ins whose argument is a filter.</summary>
+            internal ItemFilter WholeItems()
+            {
+                MarkAllRead();
+                return loader.Items(Args, PackId, Path);
+            }
+
+            public bool Has(string key)
+            {
+                read.Add(key);
+                return Args.TryGetValue(key, out object v) && v != null;
+            }
+
+            public string Text(string key, string fallback = null)
+            {
+                read.Add(key);
+                return Str(Args, key, fallback);
+            }
 
             public Value Value(string key, int fallback)
             {
@@ -1491,25 +1631,45 @@ namespace ExpeditionFramework.Core
                 return Has(key) ? loader.Items(Args[key], PackId, Path + "." + key) : ((item, s) => true);
             }
 
-            public void Error(string message) => loader.Problem(Path, message);
+            public void Error(string message)
+            {
+                errored = true;
+                loader.Problem(Path, message);
+            }
 
-            public bool Flag(string key, bool fallback) => Bool(Args, key, fallback);
+            public void Warn(string message) => loader.Warn(Path, message);
 
-            public int Number(string key, int fallback) => Int(Args, key, fallback);
+            public bool Flag(string key, bool fallback)
+            {
+                read.Add(key);
+                return Bool(Args, key, fallback);
+            }
+
+            public int Number(string key, int fallback)
+            {
+                read.Add(key);
+                return Int(Args, key, fallback);
+            }
 
             public bool IsText(string key) => Has(key) && Args[key] is string;
 
-            public ILine Line(string key) => Has(key) ? loader.LineFrom(Args[key], PackId, Path + "." + key) : null;
+            public ILine Line(string key) => Has(key) ? loader.LineFrom(Args[key], PackId, Path + "." + key, Schema.Line) : null;
 
             public ILine InlineLine()
             {
                 bool own = Args.ContainsKey("text") || Args.ContainsKey("key") || Args.ContainsKey("cases");
-                return loader.LineFrom(own ? (object)Args : (Args.TryGetValue("value", out object v) ? v : null), PackId, Path);
+                if (own) Mark("text", "key", "cases", "args", "variants", "tone");
+                else Mark("value");
+                return loader.LineFrom(own ? (object)Args : (Args.TryGetValue("value", out object v) ? v : null), PackId, Path, null);
             }
 
             public IItemUse Use(string key = null)
             {
-                return key == null ? loader.UseOf(Args, PackId, Path) : loader.UseOf(Has(key) ? Args[key] : null, PackId, Path + "." + key);
+                if (key != null) return loader.UseOf(Has(key) ? Args[key] : null, PackId, Path + "." + key, checkShape: true);
+                Mark("select", "each", "consume", "limit", "order", "where");
+                // Without "select", the arguments are themselves the item filter.
+                if (!Args.ContainsKey("select")) MarkAllRead();
+                return loader.UseOf(Args, PackId, Path, checkShape: false);
             }
 
             public string Require(string key)
@@ -1532,6 +1692,7 @@ namespace ExpeditionFramework.Core
 
             private List<object> ListAt(string key)
             {
+                read.Add(key);
                 object value = Args.TryGetValue(key, out object v) ? v : null;
                 return value as List<object> ?? new List<object> { value };
             }
@@ -1545,13 +1706,19 @@ namespace ExpeditionFramework.Core
 
             public IReadOnlyList<ISpec> Entries(string key)
             {
+                read.Add(key);
                 var entries = new List<ISpec>();
                 object value = Args.TryGetValue(key, out object v) ? v : null;
                 int index = 0;
                 foreach (object e in value as List<object> ?? new List<object>())
                 {
                     string at = Path + "[" + index++ + "]";
-                    if (e is Node entry) entries.Add(new Spec(loader, PackId, at, entry));
+                    if (e is Node entry)
+                    {
+                        var child = new Spec(loader, PackId, at, entry);
+                        children.Add(child);
+                        entries.Add(child);
+                    }
                     else loader.Problem(at, "must be an object");
                 }
                 return entries;
@@ -1578,6 +1745,8 @@ namespace ExpeditionFramework.Core
                     string full = Ref((string)Args["value"], kind);
                     return new DefPool<T>(run => new List<T> { table[full] });
                 }
+                // PackLoader.Pool reads these straight from Args, past the accessors that would mark them.
+                Mark("value", "pool", "from", "ids", "tag");
                 return new DefPool<T>(loader.Pool(Args, "ids", "tag", table, kind, PackId, Path));
             }
 

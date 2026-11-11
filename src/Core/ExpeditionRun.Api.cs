@@ -136,6 +136,8 @@ namespace ExpeditionFramework.Core
         string IInventory.Give(string itemId)
         {
             string name = itemId != null ? Bridge.GiveItem(itemId) : null;
+            // GameBridge.GiveItem treats "" as nothing to give, so an empty id is an empty roll, not a failed give.
+            if (!string.IsNullOrEmpty(itemId) && name == null) Log("bad", "could not give " + itemId + " (unknown item id, or no room on the ground)");
             Found(name);
             return name;
         }
