@@ -637,13 +637,48 @@ namespace ExpeditionFramework.Core
                 bool paired = c.Text("what", "item") == "with";
                 return s => s.Run.Inventory.Consume(paired ? s.Paired : s.Item, count(s));
             };
+            // Each ammo item is worth its `rounds`, whatever gun it goes into, and reload takes as many rounds as fit.
+            // Rounds already loaded stay unless the new ammo is a different kind. No round is thrown away: an item opened
+            // but not emptied stays carried, and the ammo's `spent` remembers how much of it is gone, so the next reload
+            // draws from it first. An item is used up only once all its rounds are in a gun.
             r.Effects["reload"] = c => s =>
             {
                 IItem gun = s.Item;
                 if (gun == null) return;
-                gun.Set("loaded", gun.Get("capacity"));
-                gun.Set("round_kind", s.Paired?.Get("kind") ?? 0);
-                gun.SetText("round", s.Paired?.Name ?? "");
+                int capacity = gun.Get("capacity");
+                IItem ammo = s.Paired;
+                if (ammo == null)
+                {
+                    gun.Set("loaded", capacity);
+                    gun.Set("round_kind", 0);
+                    gun.SetText("round", "");
+                    return;
+                }
+                int kind = ammo.Get("kind");
+                int kept = kind == gun.Get("round_kind") ? Math.Max(0, Math.Min(gun.Get("loaded"), capacity)) : 0;
+                int perItem = ammo.Get("rounds");
+                int used;
+                if (perItem <= 0)
+                {
+                    // Ammo with no `rounds` stat: one item fills any gun.
+                    if (ammo.Count <= 0) return;
+                    used = 1;
+                    s.Run.Inventory.Consume(ammo, 1);
+                    gun.Set("loaded", capacity);
+                }
+                else
+                {
+                    int spent = Math.Max(0, Math.Min(ammo.Get("spent"), perItem - 1));
+                    int take = Math.Min(capacity - kept, ammo.Count * perItem - spent);
+                    if (take <= 0) return;
+                    used = (spent + take) / perItem;
+                    if (used > 0) s.Run.Inventory.Consume(ammo, used);
+                    ammo.Set("spent", (spent + take) % perItem);
+                    gun.Set("loaded", kept + take);
+                }
+                gun.Set("round_kind", kind);
+                gun.SetText("round", ammo.Name);
+                s.Run.Set("reload_used", used);
             };
             r.Effects["for_items"] = c =>
             {
@@ -705,11 +740,16 @@ namespace ExpeditionFramework.Core
             r.Effects["lose_items"] = c =>
             {
                 Value percent = c.Value("value", 50);
+                Value perCell = c.Value("per_cell", 0);
+                Value max = c.Value("max", 100);
                 ILine logged = c.Line("night_log");
                 string color = c.Text("color");
                 return s =>
                 {
-                    IReadOnlyList<string> names = s.Run.Inventory.LoseCarried(percent(s));
+                    int cell = perCell(s);
+                    IReadOnlyList<string> names = cell > 0
+                        ? s.Run.Inventory.LoseCarriedBySize(cell, max(s))
+                        : s.Run.Inventory.LoseCarried(percent(s));
                     if (logged == null || names.Count == 0) return;
                     s.Run.SetText("lost", string.Join(", ", names));
                     s.Run.NightLog(logged.Render(s.WithArg("lost", names.Count)), color);

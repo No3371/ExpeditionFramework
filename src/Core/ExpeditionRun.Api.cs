@@ -152,9 +152,13 @@ namespace ExpeditionFramework.Core
         void IInventory.AddCredits(int amount) => Bridge.AddCredits(amount);
         bool IInventory.SpendCredits(int amount) => Bridge.SpendCredits(amount);
 
-        IReadOnlyList<string> IInventory.LoseCarried(int percent)
+        IReadOnlyList<string> IInventory.LoseCarried(int percent) => LogLost(Bridge.LoseCarried(size => percent));
+
+        IReadOnlyList<string> IInventory.LoseCarriedBySize(int percentPerCell, int maxPercent) =>
+            LogLost(Bridge.LoseCarried(size => Math.Min(maxPercent, percentPerCell * size)));
+
+        private IReadOnlyList<string> LogLost(List<string> names)
         {
-            List<string> names = Bridge.LoseCarried(percent);
             foreach (string name in names) Log("bad", FrameworkText("ef_lost", name));
             return names;
         }
@@ -217,6 +221,7 @@ namespace ExpeditionFramework.Core
         public void AddCredits(int amount) { }
         public bool SpendCredits(int amount) => false;
         public IReadOnlyList<string> LoseCarried(int percent) => new string[0];
+        public IReadOnlyList<string> LoseCarriedBySize(int percentPerCell, int maxPercent) => new string[0];
         public void LoseFound() { }
         public string TakeBack() => null;
         public int ClearGround() => 0;

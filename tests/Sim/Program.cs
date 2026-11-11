@@ -39,6 +39,7 @@ internal static class Program
         TestEngineVarsAreReadOnly();
         TestSpawnOutsideFight();
         TestRenderingDoesNotRoll();
+        TestReloadUsesWholeItems();
         if (content.Problems.Count > 0) return Finish();
         TestWeakPointOptions(content, text);
         Play(content, text, int.Parse(Environment.GetEnvironmentVariable("SIM_RUNS") ?? "5000"));
@@ -497,6 +498,64 @@ internal static class Program
         Check(run.Log_.Count(l => l.Tone == "bad" && l.Text.Contains("outside a fight")) == 1, "spawn outside a fight should log one bad line");
     }
 
+    // An ammo item is worth its `rounds` in any gun, and reload uses as many items as it takes to fill the gun.
+    private static void TestReloadUsesWholeItems()
+    {
+        var content = new Content();
+        var loader = new PackLoader(content, new Registry());
+        loader.Load("t", "x.json", f => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""interactions"": [
+            { ""id"": ""rl"", ""label"": ""k"", ""uses"": { ""select"": ""#firearm"", ""with"": { ""select"": ""#ammo"", ""each"": false } }, ""do"": [ { ""reload"": true } ] }
+          ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] } }
+        }");
+        loader.Finish();
+        Check(content.Problems.Count == 0, "reload: " + string.Join("; ", content.Problems));
+        if (content.Problems.Count > 0) return;
+        var cases = new (string name, int loaded, int gunKind, int perItem, int spent, int count, int ammoKind, int wantLoaded, int wantUsed, int wantSpent)[]
+        {
+            ("empty gun, 4 a piece", 0, 0, 4, 0, 5, 0, 8, 2, 0),
+            ("top up 5 empties one and opens the next", 3, 0, 4, 0, 5, 0, 8, 1, 1),
+            ("top up 2 opens one, keeps it", 6, 0, 4, 0, 5, 0, 8, 0, 2),
+            ("opened item is drawn first", 6, 0, 4, 2, 5, 0, 8, 1, 0),
+            ("other kind dumps what's loaded", 6, 0, 4, 0, 5, 1, 8, 2, 0),
+            ("only one item left", 0, 0, 4, 0, 1, 0, 4, 1, 0),
+            ("last opened item gives what's left", 0, 0, 4, 2, 1, 0, 2, 1, 0),
+            ("12 a piece fills an 8 and keeps the item", 0, 0, 12, 0, 5, 0, 8, 0, 8),
+            ("no rounds stat fills with one", 0, 0, 0, 0, 5, 0, 8, 1, 0),
+        };
+        foreach (var c in cases)
+        {
+            var bridge = new FakeBridge(new Random(1), withEverything: true);
+            RunItem gun = bridge.Items().First(i => i.Id == "pistol");
+            RunItem ammo = bridge.Items().First(i => i.Id == "rounds");
+            gun.Props["capacity"] = 8;
+            gun.Props["loaded"] = c.loaded;
+            gun.Props["round_kind"] = c.gunKind;
+            ammo.Count = c.count;
+            ammo.Props["rounds"] = c.perItem;
+            ammo.Props["spent"] = c.spent;
+            ammo.Props["kind"] = c.ammoKind;
+            var run = new ExpeditionRun(content, content.Areas["t:a"], bridge, n => 1, (p, k, a) => k, "you");
+            run.Begin();
+            RunOption reload = run.Options().FirstOrDefault(o => o.Interaction.Id == "rl");
+            Check(reload != null, "reload (" + c.name + ") should be offered");
+            if (reload == null) continue;
+            run.Perform(reload);
+            int used = c.count - (bridge.Items().Contains(ammo) ? ammo.Count : 0);
+            Check(gun.Get("loaded") == c.wantLoaded && used == c.wantUsed && run.Get("reload_used") == c.wantUsed,
+                "reload (" + c.name + "): loaded " + gun.Get("loaded") + " using " + used + ", wanted " + c.wantLoaded + " using " + c.wantUsed);
+            Check(gun.Get("round_kind") == c.ammoKind, "reload (" + c.name + ") should take the new kind");
+            if (c.perItem <= 0) continue;
+            bool left = bridge.Items().Contains(ammo);
+            Check(!left || ammo.Get("spent") == c.wantSpent, "reload (" + c.name + "): spent " + ammo.Get("spent") + ", wanted " + c.wantSpent);
+            int roundsBefore = c.count * c.perItem - c.spent;
+            int roundsAfter = left ? ammo.Count * c.perItem - ammo.Get("spent") : 0;
+            int keptInGun = c.ammoKind == c.gunKind ? c.loaded : 0;
+            Check(roundsBefore - roundsAfter == gun.Get("loaded") - keptInGun, "reload (" + c.name + ") should neither lose nor make rounds");
+        }
+    }
+
     // Drawing buttons and the info window never rolls: no flicker, and the run's dice are left for real actions.
     private static void TestRenderingDoesNotRoll()
     {
@@ -800,7 +859,7 @@ internal static class Program
         public int ClearGround() => 0;
         public string TakeBack() => null;
         public void LoseFound() { }
-        public List<string> LoseCarried(int percent) => new List<string>();
+        public List<string> LoseCarried(Func<int, int> chanceForSize) => new List<string>();
         public int GameValue(string name) => 0;
         public void Wound(string kind) { }
         public void NightLog(string text, string color) { }

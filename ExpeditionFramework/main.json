@@ -5,6 +5,7 @@
   "item_stats": {
     "#melee": { "sides": 4 },
     "#firearm": { "capacity": 4 },
+    "#ammo": { "rounds": 4 },
 
     "bandage_item": { "tags": ["medicine"], "heal_count": 1, "heal_sides": 6, "heal_flat": 2, "stops_bleeding": 1 },
     "topical_bandage_item": { "tags": ["medicine"], "heal_count": 2, "heal_sides": 4, "heal_flat": 3, "stops_bleeding": 1 },
@@ -154,7 +155,7 @@
           "label": { "text": "ef_action_reload", "args": ["item.name"] },
           "group": "tactics",
           "in": ["combat", "room"],
-          "uses": { "select": "#firearm", "with": { "select": "#ammo", "where": { "fits": true }, "each": false, "consume": 1 } },
+          "uses": { "select": "#firearm", "with": { "select": "#ammo", "where": { "fits": true }, "each": false } },
           "when": "item.loaded < item.capacity",
           "do": [ { "reload": true }, { "say": { "text": "ef_reloaded", "args": ["item.name"] } } ]
         }

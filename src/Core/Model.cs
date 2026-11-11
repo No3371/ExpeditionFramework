@@ -411,7 +411,9 @@ namespace ExpeditionFramework.Core
         /// <summary>Hands over the newest thing found. Returns its name, or null if the ground is empty.</summary>
         string TakeBack();
         void LoseFound();
-        List<string> LoseCarried(int percent);
+        /// <summary>Destroys carried pieces, each with the percent chance <paramref name="chanceForSize"/> gives for its
+        /// size in grid cells. Returns the names lost.</summary>
+        List<string> LoseCarried(Func<int, int> chanceForSize);
         int GameValue(string name);
         void Wound(string kind);
         void NightLog(string text, string color);

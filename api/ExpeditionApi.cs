@@ -385,6 +385,9 @@ namespace ExpeditionFramework.Api
 
         /// <summary>Destroys this percent of the carried kit and logs it. Returns the names lost.</summary>
         IReadOnlyList<string> LoseCarried(int percent);
+        /// <summary>Like <see cref="LoseCarried"/>, but each piece's chance is <paramref name="percentPerCell"/> times the
+        /// grid cells it takes up (attachments included), capped at <paramref name="maxPercent"/>. A stack rolls once.</summary>
+        IReadOnlyList<string> LoseCarriedBySize(int percentPerCell, int maxPercent);
         void LoseFound();
 
         /// <summary>Destroys the newest found item on the ground. Returns its name, or null if there's none.</summary>

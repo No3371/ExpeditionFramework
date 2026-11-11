@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using ExpeditionFramework.Core;
@@ -127,7 +128,7 @@ namespace ExpeditionFramework.Game
             readFrame = -1;
         }
 
-        public List<string> LoseCarried(int percent)
+        public List<string> LoseCarried(Func<int, int> chanceForSize)
         {
             EmporiumEntry entry = EmporiumEntry.Instance;
             GameItem backpack = entry.afterhourPocketSlotInvBackpack != null ? entry.afterhourPocketSlotInvBackpack.childItem : null;
@@ -135,12 +136,19 @@ namespace ExpeditionFramework.Game
             var lost = new List<string>();
             foreach (GameItem piece in kit.Where(item => !IsPartOf(item, kit)).ToList())
             {
-                if (RNG.GetRandomIntExculsive(0, 100) >= percent) continue;
+                if (RNG.GetRandomIntExculsive(0, 100) >= chanceForSize(SizeOf(piece))) continue;
                 lost.Add(piece.unitCount > 1 ? piece.GetDisplayName() + " x" + piece.unitCount : piece.GetDisplayName());
                 piece.Destroy();
             }
             readFrame = -1;
             return lost;
+        }
+
+        // Grid cells the piece takes up as carried, so a gun with a stock attached counts bigger than a bare one.
+        private static int SizeOf(GameItem piece)
+        {
+            int size = piece.GetModifiedItemSize();
+            return size > 0 ? size : Math.Max(1, piece.GetItemSize());
         }
 
         // Whether the item sits inside another item of the set, such as a magazine inside a gun.

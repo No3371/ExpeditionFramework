@@ -174,7 +174,7 @@ problem. Unknown names read as 0, so any new stat or variable just works. Functi
 
 The engine also sets `run` variables for data to read: `won` (after a fight), `last_damage`, `healed`, `given` (1 if
 the last give worked), `found_items`, `natural` and `total` (the last check or roll), `trade_cash` and `trade_bought`,
-`cart_taken`, `cleared_ground`, and `outcome_<outcome>` when the run ends. Texts: `run.$lost`, `run.$taken`,
+`cart_taken`, `cleared_ground`, `reload_used` (ammo items the last reload took), and `outcome_<outcome>` when the run ends. Texts: `run.$lost`, `run.$taken`,
 `run.$scheduled` and `run.$pick`.
 
 `game` reads the player outside the run: `game.luck`, `game.roll_luck`, `game.wounds`, `game.maimed`.
@@ -190,6 +190,15 @@ the last give worked), `found_items`, `natural` and `total` (the last check or r
 | Trading | `trade`, `new_cart`, `take_cart` |
 
 `spawn` outside a fight does nothing and runs its `else`.
+
+`reload` fills the gun (the item) from the paired ammo. Each ammo item is worth its `rounds` stat whatever gun it goes
+into, and reload takes as many rounds as fit, so it uses the ammo itself: don't also `consume` it. Rounds already
+loaded stay unless the new ammo is a different `kind`. No round is thrown away: an item opened but not emptied stays
+carried, its `spent` counts the rounds gone from it, and the next reload draws from it first. Ammo without `rounds`
+fills the gun with one item. The standard kits give every `#ammo` 4 rounds.
+
+`lose_items` destroys carried pieces (a stack counts as one). `{"lose_items": 50}` gives each a 50% chance;
+`{"lose_items": {"per_cell": 10, "max": 90}}` gives each 10% per grid cell it takes up, attachments included, up to 90%.
 
 **Conditions** are expressions, lists, or: `all`, `any`, `not`, `chance`, `has_tag`, `has_status`, `carrying`, `scene`,
 `intent_interruptible`, `fits`, `credits_at_least`. `not` and `carrying` take their condition or item filter directly,
