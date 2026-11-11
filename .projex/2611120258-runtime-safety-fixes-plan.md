@@ -4,16 +4,16 @@
 > **Author:** Opus 5.5 (plan-projex subagent, dispatched by orchestrate-projex)
 > **Source:** Direct request ("Plan hardening first") — Phase 1 of 2611120250-framework-expansion-synthesis-eval.md § Recommended Sequence (Runtime R13 + § Incidental Bugs)
 > **Parent:** 2611120250-framework-expansion-synthesis-eval.md
-> **Related Projex:** 2611120258-loader-loud-failures-plan.md (sibling, Phase 1 loader half) | 2611120227-runtime-hooks-expr-expansion-explore.md (R13, silent traps)
+> **Related Projex:** 2611120258-loader-loud-failures-plan.md (sibling, Phase 1 loader half — executes **after** this plan) | 2611120227-runtime-hooks-expr-expansion-explore.md (R13, silent traps) | 2611120448-phase1-hardening-plans-redteam.md | 2611120507-phase1-hardening-plans-blueteam.md (dispositions applied 2026-11-12)
 > **Worktree:** No — NightExpeditionsReborn's sim compiles `../../../ExpeditionFramework/src/Core` by relative path, so it only tests the main checkout.
 
 ---
 
 ## Summary
 
-Five small runtime fixes from R13, each a one-site change plus a sim test: a shared effect that throws no longer leaks its recursion counter; `set`/`add` on engine-kept `run.*` names becomes a load problem instead of a silent no-op; `spawn` outside a fight logs and takes its `else` branch instead of running `then` with an enemy that never arrived; giving an item the game can't create is logged; rendering buttons/HUD no longer rolls dice (no flicker, no RNG drain). README documents the engine-kept and engine-set `run.*` names.
+Five small runtime fixes from R13, each a one-site change plus a sim test: a shared effect that throws no longer leaks its recursion counter; `set`/`add` on engine-kept `run.*` names (and an area's `vars` naming one) becomes a load problem instead of a silent no-op; `spawn` outside a fight logs and takes its `else` branch instead of running `then` with an enemy that never arrived; giving a non-empty item id the game can't create is logged; rendering buttons/HUD no longer rolls dice (no flicker, no RNG drain). README documents the engine-kept and engine-set `run.*` names and what render-time dice mean for `when` gates.
 
-**Scope:** `src/Core/PackLoader.cs` (`CompileSharedCall` only), `src/Core/ExpeditionRun.cs`, `src/Core/ExpeditionRun.Api.cs`, `src/Core/Builtins.cs`, `tests/Sim/Program.cs`, `README.md`.
+**Scope:** `src/Core/PackLoader.cs` (`CompileSharedCall`, `CompileArea` `vars` check), `src/Core/ExpeditionRun.cs`, `src/Core/ExpeditionRun.Api.cs`, `src/Core/Builtins.cs`, `tests/Sim/Program.cs`, `README.md`.
 **Estimated Changes:** 6 files, ~8 functions.
 
 ---
@@ -30,12 +30,12 @@ Verified in code this session:
 
 ### Success Criteria
 - [ ] SC1 A shared effect whose body throws leaves `sharedDepth` unchanged: after 40 throwing calls, a working shared effect still runs and no "too deeply" line is logged.
-- [ ] SC2 `set`/`add` with `var` `run.<name>` for each engine-kept name → load problem naming the var; `ExpeditionRun.EngineVars` lists exactly the names `Get` answers from engine state.
+- [ ] SC2 `set`/`add` with `var` `run.<name>` for each engine-kept name → load problem naming the var; an area `vars` key naming an engine-kept name → load problem at `<area>.vars.<name>`; `ExpeditionRun.EngineVars` lists exactly the names `Get` answers from engine state.
 - [ ] SC3 `spawn` outside a fight: `then` not run, `else` run, one `bad` log line.
-- [ ] SC4 `Inventory.Give(id)` returning null for a non-null id logs one `bad` line naming the id.
+- [ ] SC4 `Inventory.Give(id)` returning null for a non-empty id logs one `bad` line naming the id; `null` or `""` id logs nothing.
 - [ ] SC5 `Options()`, `Hud()`, `PanelTitle()` never call the run's roll delegate; a `variants` label renders as `_0`.
 - [ ] SC6 Framework sim and NER sim exit 0; game assembly builds.
-- [ ] SC7 README lists engine-kept `run.*` names (read-only) and engine-set ambient names, and notes render-time dice.
+- [ ] SC7 README lists engine-kept `run.*` names (read-only via `set`/`add`/area `vars`; C# `IRun.Set` on them is ignored) and engine-set ambient names, and notes render-time dice incl. the gate asymmetry (`chance` gates always show, high-roll gates never show; roll into a `run.` var on room entry instead).
 
 ### Out of Scope
 - 1-turn enemy-applied status expiring before the player acts; `remove` of the last enemy ending the fight as won; spawn during enemy phase losing its Opening intent (semantic changes → later runtime phase).
@@ -58,7 +58,7 @@ Verified in code this session:
 
 | File | Role | Change Summary |
 |------|------|----------------|
-| `src/Core/PackLoader.cs` | shared-effect call | `try/finally` around body |
+| `src/Core/PackLoader.cs` | shared-effect call; area compile | `try/finally` around body; `CompileArea` rejects engine-kept `vars` keys |
 | `src/Core/ExpeditionRun.cs` | run state | `EngineVars`; `rendering` guard on `Roll`, `Options`, `Hud`, `PanelTitle` |
 | `src/Core/ExpeditionRun.Api.cs` | `IInventory.Give` | log failed give |
 | `src/Core/Builtins.cs` | `Assign`, `spawn` | engine-var problem; out-of-fight branch |
@@ -66,8 +66,8 @@ Verified in code this session:
 | `README.md` | docs | run vars, render dice |
 
 ### Dependencies
-- **Requires:** framework repo's first commit (Phase 0; zero commits today — plan must be committed on `main` before `execute-projex`; human has not decided). Both sims passing.
-- **Blocks:** none. Shares `PackLoader.CompileSharedCall`, `tests/Sim/Program.cs`, `README.md` with 2611120258-loader-loud-failures-plan.md → execute sequentially (either order), not in parallel.
+- **Requires:** ~~framework repo's first commit (Phase 0; zero commits today — human has not decided)~~ — superseded: done, `8152b9b` on `main`, full tree incl. `.projex/` (human decision, blue team F2). Precondition before `execute-projex`: `git -C <repo-root> ls-files src/Core/PackLoader.cs tests/Sim/Program.cs README.md` lists all three (code is tracked, so Rollback Plan works). Both sims passing.
+- **Blocks:** 2611120258-loader-loud-failures-plan.md. Shares `PackLoader.CompileSharedCall`, `tests/Sim/Program.cs`, `README.md` with it. ~~execute sequentially (either order)~~ — superseded: **order fixed — this plan first, loader plan second**, never in parallel (blue team F20: loader Step 3's error-vs-unread-warning test exercises the `Assign` engine-var error path this plan's Step 2 adds).
 
 ### Constraints
 - NER files read-only; NER sim must still pass.
@@ -132,7 +132,7 @@ return s =>
 };
 ```
 
-Test `TestSharedEffectSurvivesThrow()`: registry `For("t").AddEffect("boom", spec => s => throw new InvalidOperationException("boom"))`; pack `{effects: {risky: [{"t:boom": {}}], fine: [{set: {var: run.ok, value: 1}}]}, rooms: {r: {text: k}}, areas: {a: {title: k, player: {hp: 1}, layout: [{room: r}]}}}`; `run.Begin()`; compile `{"t:risky": {}}` and `{"t:fine": {}}` with a second `PackLoader` on the same content/registry (as `FightForeman` does); call `risky(run.RootScope)` 40× inside `try/catch (InvalidOperationException)`; call `fine(run.RootScope)`; `Check(run.Get("ok") == 1 && !run.Log_.Any(l => l.Text.Contains("too deeply")))`.
+Test `TestSharedEffectSurvivesThrow()`: registry `For("t").AddEffect("boom", spec => s => throw new InvalidOperationException("boom"))`; pack `{effects: {risky: [{"t:boom": {}}], fine: [{set: {var: run.ok, value: 1}}]}, rooms: {r: {text: k}}, areas: {a: {title: k, player: {hp: 1}, layout: [{room: r}]}}}`; `run.Begin()`; compile `{"t:risky": {}}` and `{"t:fine": {}}` with a second `PackLoader` on the same content and the **same `registry`** (the one holding `t:boom` — not `FightForeman`'s pattern, which builds a fresh empty `new Registry()` and would fail with an unknown-effect problem); call `risky(run.RootScope)` 40× inside `try/catch (InvalidOperationException)`; call `fine(run.RootScope)`; `Check(run.Get("ok") == 1 && !run.Log_.Any(l => l.Text.Contains("too deeply")))`.
 
 **Rationale:** Same pattern `Guarded` already uses; exception still propagates (catching data exceptions is out of scope).
 
@@ -149,7 +149,7 @@ Test `TestSharedEffectSurvivesThrow()`: registry `For("t").AddEffect("boom", spe
 **Depends on:** None
 **Do-Projex:** Encouraged
 
-**Files:** `src/Core/ExpeditionRun.cs`, `src/Core/Builtins.cs`, `tests/Sim/Program.cs`
+**Files:** `src/Core/ExpeditionRun.cs`, `src/Core/Builtins.cs`, `src/Core/PackLoader.cs` (`CompileArea`), `tests/Sim/Program.cs`
 
 **Changes:**
 
@@ -164,11 +164,19 @@ if (path.StartsWith("run.") && Array.IndexOf(ExpeditionRun.EngineVars, path.Subs
     c.Error(path + " is kept by the engine; set and add can't change it");
     return s => { };
 }
+
+// PackLoader.CompileArea — right after `d.Vars = Stats(n, "vars", d.Pack, at);` (area vars keys are bare names; Begin() copies them into run vars):
+foreach (string name in d.Vars.Keys)
+{
+    if (Array.IndexOf(ExpeditionRun.EngineVars, name) >= 0) Problem(at + ".vars." + name, "run." + name + " is kept by the engine; vars can't set it");
+}
 ```
 
-Test `TestEngineVarsAreReadOnly()`: for each name in `ExpeditionRun.EngineVars`, `ProblemsIn("{\"rooms\":{\"a\":{\"text\":\"k\",\"enter\":[{\"set\":{\"var\":\"run.<name>\",\"value\":1}}]}}}")` has 1 problem containing `run.<name>`; `add` on `run.turn` likewise; `set run.alarm` → 0 problems. Consistency: a run built from a minimal area where `vars` sets `alarm` to 7 has `Get("alarm") == 7`, and for each `EngineVars` name `Set(name, 999)` leaves `Get(name) != 999` (proves the list matches `Get`'s switch).
+C# `IRun.Set` stays unguarded (Accept Risk, blue team F7: the engine itself calls `Set` on non-engine names, and a runtime guard for C# authors is heavier than a no-op shadow) — documented in Step 6 instead.
 
-**Rationale:** Always a bug, never meaningful → problem, not warning (no dependency on the sibling plan's warning channel). Planning grep: no NER or framework content writes these.
+Test `TestEngineVarsAreReadOnly()`: for each name in `ExpeditionRun.EngineVars`, `ProblemsIn("{\"rooms\":{\"a\":{\"text\":\"k\",\"enter\":[{\"set\":{\"var\":\"run.<name>\",\"value\":1}}]}}}")` has 1 problem containing `run.<name>`; `add` on `run.turn` likewise; `set run.alarm` → 0 problems. Area vars: `ProblemsIn` of a minimal valid area (`title k, player {hp 1}, layout [{room r}]` + room `r`) with `vars {turn: 3}` → exactly 1 problem containing `vars.turn`; same area with `vars {alarm: 7}` → 0 problems. Consistency: a run built from a minimal area where `vars` sets `alarm` to 7 has `Get("alarm") == 7`, and for each `EngineVars` name `Set(name, 999)` leaves `Get(name) != 999` (proves the list matches `Get`'s switch).
+
+**Rationale:** Always a bug, never meaningful → problem, not warning (no dependency on the sibling plan's warning channel). `vars` is pack data with the same audience as `set`/`add` → same severity. Planning grep: no NER or framework content writes these (NER area `vars` = `floors`, `hazard_dc`, `hazard_die`, `search_dc`, `loot_tier`, `tip`, `jackpot`).
 
 **Verification:** V1, V2.
 
@@ -236,14 +244,17 @@ Found(name);
 return name;
 // After:
 string name = itemId != null ? Bridge.GiveItem(itemId) : null;
-if (itemId != null && name == null) Log("bad", "could not give " + itemId + " (unknown item id, or no room on the ground)");
+// GameBridge.GiveItem treats "" as nothing to give, so an empty id is an empty roll, not a failed give.
+if (!string.IsNullOrEmpty(itemId) && name == null) Log("bad", "could not give " + itemId + " (unknown item id, or no room on the ground)");
 Found(name);
 return name;
 ```
 
-Framework sim `FakeBridge`: add `public readonly HashSet<string> Unknown = new HashSet<string>();` and `GiveItem(string itemId) => Unknown.Contains(itemId) ? null : itemId;`. In `TestPublicApi` keep the bridge in a local, `bridge.Unknown.Add("ghost")`, then `Check(api.Inventory.Give("ghost") == null && run.Log_.Last().Text.Contains("ghost"))`. Existing `Give("thing")` check unchanged.
+~~Guard `itemId != null && name == null`~~ — superseded (blue team F3): `""` (empty `GameTable` roll or a `loot` interceptor blanking the id) would log a false `could not give  (…)`.
 
-**Rationale:** `GiveItem` null covers unknown id and full ground (`GameBridge.PutOnGround`); both are worth a visible line. A null `itemId` (empty loot roll) stays silent.
+Framework sim `FakeBridge`: add `public readonly HashSet<string> Unknown = new HashSet<string>();` and `GiveItem(string itemId) => string.IsNullOrEmpty(itemId) || Unknown.Contains(itemId) ? null : itemId;` (mirrors `GameBridge.GiveItem`). In `TestPublicApi` keep the bridge in a local, `bridge.Unknown.Add("ghost")`, then `Check(api.Inventory.Give("ghost") == null && run.Log_.Last().Text.Contains("ghost"))`; then `int lines = run.Log_.Count; api.Inventory.Give(""); api.Inventory.Give(null);` → `Check(run.Log_.Count == lines)` (silent for empty/null). Existing `Give("thing")` check unchanged.
+
+**Rationale:** `GiveItem` null covers unknown id and full ground (`GameBridge.PutOnGround`); both are worth a visible line. A null or empty `itemId` (empty loot roll) stays silent — matches `GameBridge.GiveItem`'s own `string.IsNullOrEmpty` contract.
 
 **Verification:** V1, V2.
 
@@ -298,14 +309,16 @@ Check A2 first: read `AddOption` and the `Hud` row/part path; confirm they only 
 
 **Objective:** SC7.
 **Confidence:** High
-**Depends on:** Steps 2, 5
+**Depends on:** Steps 2, 3, 5
 **Do-Projex:** Encouraged
 
 **Files:** `README.md`
 
-**Changes:** § Vocabulary, replace "`run` also has `depth`, `rooms`, `rooms_left`, `turn`, `enemies` and `credits`." with: `run` also has `depth`, `rooms`, `rooms_left`, `turn`, `enemies`, `credits`, `ground` and `scheduled`, kept by the engine — `set`/`add` on them is a problem. Then a sentence listing the names the engine sets for data to read — candidates found at planning by grepping `Set("…")`/`SetText("…")` in `src/Core`: `won`, `last_damage`, `healed`, `given`, `found_items`, `natural`, `total`, `trade_cash`, `trade_bought`, `cart_taken`, `cleared_ground`, `outcome_<name>`, texts `$lost`, `$taken`, `$scheduled`, `$pick`. Include a name only after reading its call site and confirming it targets the run (A3). Add: "Labels, `when`/`where` on buttons, previews and HUD lines are drawn without rolling: dice count as 1 and `variants` show the first text." Under § Effects (or near the effects table): "`spawn` outside a fight does nothing and runs its `else`."
+**Changes:** § Vocabulary, replace "`run` also has `depth`, `rooms`, `rooms_left`, `turn`, `enemies` and `credits`." with: `run` also has `depth`, `rooms`, `rooms_left`, `turn`, `enemies`, `credits`, `ground` and `scheduled`, kept by the engine — `set`/`add` on them, or an area's `vars` naming them, is a problem. In § The C# API (near `IRun`): "`Set` on a name the engine keeps does nothing — `Get` keeps answering from the engine." Then a sentence listing the names the engine sets for data to read — candidates found at planning by grepping `Set("…")`/`SetText("…")` in `src/Core`: `won`, `last_damage`, `healed`, `given`, `found_items`, `natural`, `total`, `trade_cash`, `trade_bought`, `cart_taken`, `cleared_ground`, `outcome_<name>`, texts `$lost`, `$taken`, `$scheduled`, `$pick`. Include a name only after reading its call site and confirming it targets the run (A3). Add: "Labels, `when`/`where` on buttons, previews and HUD lines are drawn without rolling: dice count as 1 and `variants` show the first text. So a button whose `when` uses `chance` always shows, and one that needs a high roll never shows (the gate isn't checked again when pressed) — roll into a `run.` var when entering the room and test that instead." Under § Effects (or near the effects table): "`spawn` outside a fight does nothing and runs its `else`."
 
-**Verification:** V4; judgment: names verified.
+Each V4 probe phrase (`` `ground` ``, `kept by the engine`, `count as 1`, `never shows`, `outside a fight`) must sit on one README line — README is hard-wrapped, and a phrase split across lines fails `grep -F`.
+
+**Verification:** V4; judgment: names verified; `vars` and `IRun`/`Set` sentences present.
 
 **If this fails:** revert README.
 
@@ -322,24 +335,25 @@ Commands from the framework repo root.
 | V1 | SC1–SC5, Steps 1–5 | `dotnet run -c Release --project tests/Sim` | exit 0; last line `All checks passed` | each fix's test; regressions |
 | V2 | SC6 | `dotnet run -c Release --project ../NightExpeditionsReborn/tests/Sim` | exit 0; last line `All checks passed` | NER broken by engine-var problem, spawn branch, render change |
 | V3 | SC6 | `dotnet build -c Release ExpeditionFramework.csproj -p:InstallDir=obj/verify-install/` | exit 0 | game assembly compile break |
-| V4 | SC7 | `for p in "rooms_left" "scheduled" "kept by the engine" "count as 1" "outside a fight"; do grep -c -F -e "$p" README.md; done` | five counts, each ≥ 1 | docs step skipped |
-| V5 | SC1 | `grep -c "finally" src/Core/PackLoader.cs` | ≥ 1 | Step 1 not applied |
+| V4 | SC7 | ``for p in '`ground`' "kept by the engine" "count as 1" "never shows" "outside a fight"; do grep -c -F -e "$p" README.md; done`` | five counts, each ≥ 1 (all five are 0 at `8152b9b`) | docs step skipped |
+| ~~V5~~ | ~~SC1~~ | ~~`grep -c "finally" src/Core/PackLoader.cs`~~ | — | superseded: matches any future `finally`; SC1 evidence is V1's `TestSharedEffectSurvivesThrow` alone |
 
 ### Judgment Checks
 
 | Check | Covers | Why not deterministic |
 |-------|--------|-----------------------|
 | Ambient var list verified per call site | SC7 | requires reading whether each `Set` targets run vs entity/decision |
+| README states area `vars` rule and C# `Set` no-op on engine names | SC7 | prose |
 | In game: variant labels stable, no stray `bad` lines on normal play | SC5, SC3, SC4 | needs the game |
 
 ### Acceptance Criteria Validation
 
 | Criterion | Check IDs | Expected Result |
 |-----------|-----------|-----------------|
-| SC1 | V1 (`TestSharedEffectSurvivesThrow`), V5 | working shared effect after 40 throws |
-| SC2 | V1 (`TestEngineVarsAreReadOnly`), V2 | problem per engine name; list matches `Get` |
+| SC1 | V1 (`TestSharedEffectSurvivesThrow`) | working shared effect after 40 throws |
+| SC2 | V1 (`TestEngineVarsAreReadOnly`), V2 | problem per engine name (`set`/`add` and area `vars`); list matches `Get` |
 | SC3 | V1 (`TestSpawnOutsideFight`) | else ran, then not, one bad line |
-| SC4 | V1 (`TestPublicApi` addition) | bad line names `ghost` |
+| SC4 | V1 (`TestPublicApi` addition) | bad line names `ghost`; `Give("")`/`Give(null)` add no line |
 | SC5 | V1 (`TestRenderingDoesNotRoll`) | zero rolls; `k_0` label |
 | SC6 | V1, V2, V3 | all exit 0 |
 | SC7 | V4, judgment | documented, verified names |
@@ -353,10 +367,17 @@ Commands from the framework repo root.
 
 ---
 
+## Revision Log
+
+- **2026-11-12:** Applied blue team Must Fix items owned by this plan — trigger: 2611120507-phase1-hardening-plans-blueteam.md § Defense Plan (dispositions settled by human + orchestrator). F2: Dependencies record first commit `8152b9b` (full tree) + `ls-files` precondition. F20: order fixed (this plan first; Blocks loader plan). F3: Step 4 guard → `!string.IsNullOrEmpty(itemId)`, `FakeBridge` mirrors `GameBridge`, `Give("")`/`Give(null)` silent check; SC4 reworded. F7: Step 2 adds `CompileArea` `vars` engine-name problem + test; `IRun.Set` Accept Risk documented (Step 6, Risks); SC2/SC7/Scope/Key Files updated. F8: Step 6 README sentence spells out `chance`-always-shows / high-roll-never-shows + `run.`-var pattern; Risks updated. F10: Step 1 test note drops misleading `FightForeman` reference (same `registry`); V4 probes replaced (old `rooms_left`/`scheduled` already matched at `8152b9b`); V5 superseded; one-line probe rule added to Step 6. Status stays `Ready` — all decisions recorded.
+
+---
+
 ## Notes
 
 ### Risks
-- Step 5 changes what players see: a button whose `when` uses dice now shows as if all dice rolled 1 (previously random per refresh). No shipped content does this (planning grep); documented.
+- Step 5 changes what players see: a button whose `when` uses dice now shows as if all dice rolled 1 (previously random per refresh) — `chance` gates always open, high-roll gates always closed, and `Perform` doesn't recheck `when`. No shipped content does this (planning grep; red team re-verified); documented with the `run.`-var pattern (Step 6). Load-time warning on dice in `when` rejected — new code for a hazard no content has.
+- C# `IRun.Set` on an engine-kept name silently shadows (Accept Risk); reverse when the first C# pack writes engine names.
 - Step 2 could break a third-party pack that writes engine names: it was already a no-op; the problem surfaces the bug. Escalation path in Step 2.
 - New `bad` log lines are English-only, like existing runtime content-error lines.
 
@@ -365,3 +386,8 @@ Commands from the framework repo root.
 
 ### Open Questions
 - (none)
+
+### Decisions Recorded
+- Phase 0: full-tree first commit `8152b9b` on `main` (human, blue team F2).
+- Execution order: this plan first, then 2611120258-loader-loud-failures-plan.md (blue team F20). Worktree: No (unchanged).
+- Loader-plan decisions (SC8 fix, wrong-typed scalars = problems, misplaced `weight`/`when`/`tags` = warnings) are recorded in the sibling; none affect this plan's steps.
