@@ -1,6 +1,6 @@
 # Runtime Safety Fixes — Shared-Effect Leak, Engine Vars, Spawn, Give, Render-Time Dice
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Author:** Opus 5.5 (plan-projex subagent, dispatched by orchestrate-projex)
 > **Source:** Direct request ("Plan hardening first") — Phase 1 of 2611120250-framework-expansion-synthesis-eval.md § Recommended Sequence (Runtime R13 + § Incidental Bugs)
 > **Parent:** 2611120250-framework-expansion-synthesis-eval.md
