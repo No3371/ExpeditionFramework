@@ -44,6 +44,7 @@ internal static class Program
         TestMemory();
         TestMapMemory();
         TestGameReads();
+        TestReputation();
         TestMemoryWarnings();
         TestPackMemory();
         if (content.Problems.Count > 0) return Finish();
@@ -612,6 +613,65 @@ internal static class Program
 
     // game.clears reads the reading area's clears and game.clears.AREA another area of its pack, so hidden_when can
     // unlock an area on a clear OR on memory.
+    // game.rep.FACTION reads reputation and the reputation effect changes it through the bridge, logging the game's line,
+    // a pack's own, or nothing; a faction the player lacks changes and logs nothing. Unknown factions fail the load.
+    private static void TestReputation()
+    {
+        Check(GameReads.RepFaction("rep.security") == "security" && GameReads.RepFaction("day") == null && GameReads.RepFaction(null) == null,
+            "rep.FACTION names a faction read");
+        Check(GameReads.FactionId("black_market") == "FACTION_BLACK_MARKET", "faction names map to the game's ids");
+        Check(GameReads.BadRead("rep.security") == null && GameReads.BadRead("rep.church") != null && GameReads.BadRead("luck") == null,
+            "only rep reads of unknown factions are bad");
+
+        var content = new Content();
+        var loader = new PackLoader(content, new Registry());
+        loader.Load("t", "x.json", f => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [
+            { ""set"": { ""var"": ""run.before"", ""value"": ""game.rep.security"" } },
+            { ""reputation"": { ""faction"": ""security"", ""value"": 5 } },
+            { ""set"": { ""var"": ""run.after"", ""value"": ""game.rep.security"" } },
+            { ""reputation"": { ""faction"": ""revolution"", ""value"": ""0 - run.after"", ""night_log"": { ""text"": ""rev_line"", ""args"": [""arg.rep""] } } },
+            { ""reputation"": { ""faction"": ""upper_level"", ""value"": 2, ""quiet"": true } },
+            { ""reputation"": { ""faction"": ""black_market"", ""value"": 0 } },
+            { ""reputation"": { ""faction"": ""cartel"", ""value"": 3 } },
+            { ""if"": { ""when"": ""game.rep.upper_level >= 2"", ""then"": [ { ""set"": { ""var"": ""run.upper"", ""value"": 1 } } ] } }
+          ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] } }
+        }");
+        loader.Finish();
+        Check(content.Problems.Count == 0, "reputation pack: " + string.Join("; ", content.Problems));
+        if (content.Problems.Count > 0) return;
+        var bridge = new FakeBridge(new Random(1));
+        bridge.Game["rep.security"] = 10;
+        var run = new ExpeditionRun(content, content.Areas["t:a"], bridge, n => 1, (p, k, a) => k + ":" + string.Join(",", a), "you");
+        run.Begin();
+        Check(run.Get("before") == 10 && run.Get("after") == 15, "a reputation change shows in later reads: " + run.Get("before") + " -> " + run.Get("after"));
+        Check(bridge.GameValue("rep.revolution") == -15 && bridge.GameValue("rep.upper_level") == 2 && run.Get("upper") == 1,
+            "value is an expression, and quiet still changes reputation");
+        Check(!bridge.Game.ContainsKey("rep.black_market") && !bridge.Game.ContainsKey("rep.cartel"), "zero and a missing faction change nothing");
+        string logs = string.Join(" | ", bridge.NightLogs.Select(l => l.Text + "@" + l.Color));
+        Check(logs == "rep security 5@5c6f46 | rev_line:-15@9c3738", "the game's line green for a gain, the pack's own red for a loss, quiet and no-ops log nothing: " + logs);
+
+        foreach ((string effect, string expected) in new[]
+        {
+            (@"{ ""reputation"": { ""faction"": ""church"", ""value"": 1 } }", "unknown faction 'church'"),
+            (@"{ ""reputation"": { ""value"": 1 } }", "needs \""),
+            (@"{ ""set"": { ""var"": ""run.x"", ""value"": ""game.rep.securty"" } }", "unknown faction 'securty'"),
+        })
+        {
+            var bad = new Content();
+            var badLoader = new PackLoader(bad, new Registry());
+            badLoader.Load("t", "x.json", f => @"{
+              ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [ " + effect + @" ] } },
+              ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] } }
+            }");
+            badLoader.Finish();
+            Check(bad.Problems.Any(p => p.Contains(expected)), "bad reputation use is reported (" + expected + "): " + string.Join("; ", bad.Problems));
+        }
+        List<string> unread = WarningsIn(@"{""rooms"":{""r"":{""text"":""k"",""enter"":[{""reputation"":{""faction"":""security"",""amount"":1}}]}}}");
+        Check(unread.Count == 1 && unread[0].Contains("reputation.amount"), "a misspelled reputation argument is warned about: " + string.Join("; ", unread));
+    }
+
     private static void TestGameReads()
     {
         Check(GameReads.ClearsArea("clears", "a:cellar") == "a:cellar", "game.clears counts the reading area");
@@ -1169,10 +1229,19 @@ internal static class Program
         public string TakeBack() => null;
         public void LoseFound() { }
         public List<string> LoseCarried(Func<int, int> chanceForSize) => new List<string>();
-        public int GameValue(string name) => 0;
+        public readonly Dictionary<string, int> Game = new Dictionary<string, int>();
+        public int GameValue(string name) => Game.TryGetValue(name, out int value) ? value : 0;
         public IMemory Memory { get; }
         public void Wound(string kind) { }
-        public void NightLog(string text, string color) { }
+        // Every faction but the cartel, as on a start other than the drug dealer's.
+        public string Reputation(string faction, int amount)
+        {
+            if (faction == "cartel") return null;
+            Game["rep." + faction] = GameValue("rep." + faction) + amount;
+            return "rep " + faction + " " + amount;
+        }
+        public readonly List<(string Text, string Color)> NightLogs = new List<(string, string)>();
+        public void NightLog(string text, string color) => NightLogs.Add((text, color));
         public void PlaySound(string id) { }
         public void PlayItemSound(RunItem item, string fallback) { }
         public bool OpenTrade(TradeRequest request) => false;

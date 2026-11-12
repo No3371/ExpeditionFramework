@@ -422,6 +422,26 @@ namespace ExpeditionFramework.Core
             r.Effects["schedule"] = CompileSchedule;
             r.Effects["unschedule"] = c => { Value at = c.Value("value", 0); return s => s.Run.Flow.Unschedule(at(s)); };
             r.Effects["wound"] = c => { string kind = c.Require("value"); return s => s.Run.Wound(kind); };
+            // Changes reputation with a faction and logs it the way the game logs its own overnight reputation changes: its
+            // own text, green for a gain, red for a loss. night_log replaces the text (arg.rep is the change), quiet logs nothing.
+            r.Effects["reputation"] = c =>
+            {
+                string faction = c.Require("faction");
+                if (faction != null && !GameReads.IsFaction(faction)) c.Error(GameReads.UnknownFaction(faction));
+                Value amount = c.Value("value", 0);
+                ILine logged = c.Line("night_log");
+                string color = c.Text("color");
+                bool quiet = c.Flag("quiet", false);
+                return s =>
+                {
+                    int value = amount(s);
+                    if (value == 0) return;
+                    string line = s.Run.Reputation(faction, value);
+                    if (line == null || quiet) return;
+                    if (logged != null) line = logged.Render(s.WithArg("rep", value));
+                    s.Run.NightLog(line, color ?? (value > 0 ? "5c6f46" : "9c3738"));
+                };
+            };
             r.Effects["night_log"] = c =>
             {
                 ILine line = c.InlineLine();

@@ -373,6 +373,12 @@ namespace ExpeditionFramework.Core
             {
                 return s => Sum(s, count, sides);
             }
+            string badGame = word.StartsWith("game.", StringComparison.Ordinal) ? GameReads.BadRead(word.Substring(5)) : null;
+            if (badGame != null)
+            {
+                Fail(badGame);
+                return s => 0;
+            }
             Value reader = Reader(word, named, pack: pack);
             if (reader == null)
             {

@@ -80,7 +80,17 @@ internal sealed class KitBridge : IBridge
     }
 
     public int GameValue(string name) =>
-        settings.CoinGame.Contains(name) ? random.Next(2) : settings.Game.TryGetValue(name, out int value) ? value : 0;
+        reputation.TryGetValue(name, out int changed) ? changed
+        : settings.CoinGame.Contains(name) ? random.Next(2) : settings.Game.TryGetValue(name, out int value) ? value : 0;
+    // Reputation this run changed, by game.NAME: later reads see it, as in the game. Every faction exists, clamped as the game clamps.
+    private readonly Dictionary<string, int> reputation = new Dictionary<string, int>();
+    public string Reputation(string faction, int amount)
+    {
+        if (amount == 0 || !GameReads.IsFaction(faction)) return null;
+        string name = "rep." + faction;
+        reputation[name] = Math.Max(-200, Math.Min(200, GameValue(name) + amount));
+        return "Reputation " + (amount > 0 ? "gained" : "lost") + " with " + faction + " (" + (amount > 0 ? "+" : "") + amount + ")";
+    }
     // The row's store when sim.json gives the row memory; otherwise an empty one for this run alone.
     public IMemory Memory { get; }
     public void Wound(string kind) { }

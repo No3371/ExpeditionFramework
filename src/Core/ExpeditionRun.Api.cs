@@ -17,6 +17,7 @@ namespace ExpeditionFramework.Core
         void IRun.Say(string tone, ILine line, IScope scope) => Say(tone, (Line)line, scope);
         void IRun.Emit(string hook, IEntity subject, IEntity other) => Emit(hook, subject as Entity, other as Entity);
         void IRun.Wound(string kind) => Bridge.Wound(kind);
+        string IRun.Reputation(string faction, int amount) => Bridge.Reputation(faction, amount);
         void IRun.NightLog(string text, string color) => Bridge.NightLog(text, color);
         void IRun.PlaySound(string id) => Bridge.PlaySound(id);
 

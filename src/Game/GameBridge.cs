@@ -170,6 +170,17 @@ namespace ExpeditionFramework.Game
             else HealthData.ReceiveMinorWound();
         }
 
+        // As the game settles its own overnight reputation changes (VendingMachineHelper.SettleMislabelRep): ModReputation
+        // without the store's popup, which isn't on screen at night, and its own gained/lost text with the amount.
+        public string Reputation(string faction, int amount)
+        {
+            string id = GameReads.FactionId(faction);
+            if (amount == 0 || !PlayerStore.HasInstance || PlayerStore.Instance.storeReputations == null || StoreReputation.GetStoreReputation(id) == null) return null;
+            StoreReputation.ModReputation(id, amount, notify: false);
+            string name = StoreReputation.GetFactionNameByID(id);
+            return LocHelper.GetLocalizedUI(amount > 0 ? "ui_rep_gained" : "ui_rep_lost", name) + " (" + (amount > 0 ? "+" : "") + amount + ")";
+        }
+
         public void NightLog(string text, string color) => PlayerStore.Instance.AddNightLog(text, color);
 
         public void PlaySound(string id) => sounds.Play(id);
@@ -202,6 +213,8 @@ namespace ExpeditionFramework.Game
         {
             string clearsOf = GameReads.ClearsArea(name, areaId);
             if (clearsOf != null) return Clears(clearsOf);
+            string faction = GameReads.RepFaction(name);
+            if (faction != null) return Reputation(faction);
             switch (name)
             {
                 case "luck": return HealthData.GetLuck();
@@ -211,6 +224,13 @@ namespace ExpeditionFramework.Game
                 case "day": return StoreStation.GetDayCounter();
                 default: return 0;
             }
+        }
+
+        /// <summary>The player's reputation with a faction, whole as the game shows it; 0 without a save or that faction.</summary>
+        public static int Reputation(string faction)
+        {
+            if (!PlayerStore.HasInstance || PlayerStore.Instance.storeReputations == null || !GameReads.IsFaction(faction)) return 0;
+            return StoreReputation.GetStoreReputation(GameReads.FactionId(faction))?.GetReputation() ?? 0;
         }
 
         /// <summary>

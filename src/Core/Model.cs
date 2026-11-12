@@ -452,10 +452,17 @@ namespace ExpeditionFramework.Core
         List<string> LoseCarried(Func<int, int> chanceForSize);
         /// <summary>
         /// The player fact game.NAME reads, 0 for a name the host doesn't know. The game knows luck, roll_luck, wounds,
-        /// maimed, day (the game's own day counter) and clears / clears.AREA (how often the player has cleared the reading
-        /// area / AREA of its pack, see GameReads). A sim reads whatever its config lists for the name.
+        /// maimed, day (the game's own day counter), clears / clears.AREA (how often the player has cleared the reading
+        /// area / AREA of its pack) and rep.FACTION (the player's reputation with FACTION, -200 to 200; see GameReads).
+        /// A sim reads whatever its config lists for the name.
         /// </summary>
         int GameValue(string name);
+        /// <summary>
+        /// Changes the player's reputation with a faction (a GameReads.Factions name) the way the game's own events do, so
+        /// perks and difficulty scale it. Returns the game's own night log line for the change, or null if the player has no
+        /// such faction (the cartel exists only on the drug dealer start) and nothing changed.
+        /// </summary>
+        string Reputation(string faction, int amount);
         /// <summary>Where packs keep memory.* across nights. The game keeps it in the player's save; a sim can keep it in a MemoryStore.</summary>
         IMemory Memory { get; }
         void Wound(string kind);
@@ -485,6 +492,33 @@ namespace ExpeditionFramework.Core
             int colon = areaId.IndexOf(':');
             return areaId.Substring(0, colon + 1) + name.Substring(Clears.Length + 1);
         }
+
+        private const string Rep = "rep.";
+
+        /// <summary>
+        /// The factions the game keeps reputation with, as packs name them: the game's FACTION_ ids in lower case without
+        /// the prefix. The cartel exists only on the drug dealer start.
+        /// </summary>
+        public static readonly string[] Factions = { "lower_level", "upper_level", "security", "black_market", "revolution", "cartel" };
+
+        public static bool IsFaction(string faction) => Array.IndexOf(Factions, faction) >= 0;
+
+        /// <summary>The game's id for a faction, such as FACTION_BLACK_MARKET for black_market.</summary>
+        public static string FactionId(string faction) => "FACTION_" + faction.ToUpperInvariant();
+
+        /// <summary>The faction game.NAME reads the reputation of, or null when NAME isn't a rep.FACTION read.</summary>
+        public static string RepFaction(string name) =>
+            name != null && name.StartsWith(Rep, StringComparison.Ordinal) ? name.Substring(Rep.Length) : null;
+
+        /// <summary>The problem with game.NAME when it reads reputation of a faction the game doesn't have, else null.</summary>
+        public static string BadRead(string name)
+        {
+            string faction = RepFaction(name);
+            return faction == null || IsFaction(faction) ? null : UnknownFaction(faction);
+        }
+
+        public static string UnknownFaction(string faction) =>
+            "unknown faction '" + faction + "' (factions are " + string.Join(", ", Factions) + ")";
     }
 
     /// <summary>

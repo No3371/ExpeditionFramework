@@ -291,6 +291,14 @@ namespace ExpeditionFramework.Api
         int Damage(IEntity target, int amount, IEntity source, bool pierce);
 
         void Wound(string kind);
+
+        /// <summary>
+        /// Changes the player's reputation with a faction (lower_level, upper_level, security, black_market, revolution or
+        /// cartel) the way the game's own events do, so perks and difficulty scale it. Returns the game's own night log line
+        /// for the change, or null when nothing changed: the player has no such faction, or the run is on the map.
+        /// Logs nothing itself.
+        /// </summary>
+        string Reputation(string faction, int amount);
         void NightLog(string text, string color);
         void PlaySound(string id);
 
