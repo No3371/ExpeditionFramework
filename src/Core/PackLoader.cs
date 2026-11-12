@@ -137,6 +137,10 @@ namespace ExpeditionFramework.Core
         private readonly List<(string Pack, List<(string At, Node Root)> Files)> pending = new List<(string, List<(string, Node)>)>();
         private readonly Dictionary<string, List<string>> problemsByPack = new Dictionary<string, List<string>>();
         private readonly Dictionary<string, List<string>> warningsByPack = new Dictionary<string, List<string>>();
+        // memory.* names per pack: where each is first read, and which are written. Packs never see each other's memory,
+        // so a name its own pack never writes always reads 0 or "" — a typo or a missing set. Finish warns about those.
+        private readonly Dictionary<(string Pack, string Name), string> memoryReads = new Dictionary<(string Pack, string Name), string>();
+        private readonly HashSet<(string Pack, string Name)> memoryWrites = new HashSet<(string Pack, string Name)>();
         private readonly List<string> patchers = new List<string>();
         private string compilingValue;
         private string folder = "";
@@ -568,6 +572,15 @@ namespace ExpeditionFramework.Core
                 CheckValueCycle(value);
             }
             valueUses.Clear();
+            // A warning, not a problem: the pack still runs, the name just never holds anything.
+            foreach (KeyValuePair<(string Pack, string Name), string> read in memoryReads.Where(r => !memoryWrites.Contains(r.Key)))
+            {
+                current = read.Key.Pack;
+                Warn(read.Value, "memory." + read.Key.Name + " is read but never written by this pack, so it always reads "
+                    + (read.Key.Name.StartsWith("$", StringComparison.Ordinal) ? "\"\"" : "0"));
+            }
+            memoryReads.Clear();
+            memoryWrites.Clear();
             knownItemTags = null;
         }
 
@@ -618,6 +631,19 @@ namespace ExpeditionFramework.Core
             content.Warnings.Add(warning);
             if (!warningsByPack.TryGetValue(current, out List<string> list)) warningsByPack[current] = list = new List<string>();
             list.Add(warning);
+        }
+
+        /// <summary>
+        /// Notes that <paramref name="pack"/> reads or writes <paramref name="path"/>. Only memory.NAME and memory.$NAME count;
+        /// the $ stays in the name, as text and number memory are separate values.
+        /// </summary>
+        internal void NoteMemory(string pack, string path, string at, bool write)
+        {
+            const string head = "memory.";
+            if (pack == null || path == null || path.Length <= head.Length || !path.StartsWith(head, StringComparison.Ordinal)) return;
+            (string, string) key = (pack, path.Substring(head.Length));
+            if (write) memoryWrites.Add(key);
+            else if (!memoryReads.ContainsKey(key)) memoryReads[key] = at;
         }
 
         // Unknown keys and unknown tones are warnings; a value of the wrong type is a problem. The reads that follow keep their
@@ -979,6 +1005,7 @@ namespace ExpeditionFramework.Core
             if (slot.Pool == null || !area.Pools.ContainsKey(slot.Pool)) Problem(at + ".pool", "must name one of this area's pools");
             if (n.ContainsKey("counts")) slot.Counts = List(n, "counts").OfType<double>().Select(c => (int)c).ToArray();
             slot.GoodPicks.UnionWith(List(n, "good").OfType<string>().Select(id => Qualify(pack, id)));
+            if (n.ContainsKey("when")) slot.When = Condition(n["when"], pack, at + ".when");
             return slot;
         }
 
@@ -1210,13 +1237,13 @@ namespace ExpeditionFramework.Core
                 text.Pack = key.Substring(0, colon);
                 text.Key = key.Substring(colon + 1);
             }
-            if (brace >= 0) text.Dynamic = Template(text.Key, at);
+            if (brace >= 0) text.Dynamic = Template(text.Key, pack, at);
             else if (variants == 0) content.TextKeys.Add((text.Pack, text.Key));
             else for (int i = 0; i < variants; i++) content.TextKeys.Add((text.Pack, text.Key + "_" + i));
             return text;
         }
 
-        private Func<IScope, string> Template(string key, string at)
+        private Func<IScope, string> Template(string key, string pack, string at)
         {
             var pieces = new List<Func<IScope, string>>();
             int position = 0;
@@ -1241,9 +1268,13 @@ namespace ExpeditionFramework.Core
                     break;
                 }
                 string path = key.Substring(open + 1, close - open - 1);
-                Func<IScope, string> reader = Expr.TextReader(path, fieldRequired: false);
+                Func<IScope, string> reader = Expr.TextReader(path, fieldRequired: false, pack: pack);
                 if (reader == null) Problem(at, "can't fill in {" + path + "}");
-                else pieces.Add(reader);
+                else
+                {
+                    NoteMemory(pack, path, at, write: false);
+                    pieces.Add(reader);
+                }
                 position = close + 1;
             }
             return s =>
@@ -1309,8 +1340,12 @@ namespace ExpeditionFramework.Core
             if (arg is string text)
             {
                 if (text == "percent") return s => s.Arg("percent");
-                Func<IScope, string> reader = Expr.TextReader(text, fieldRequired: true);
-                if (reader != null) return reader;
+                Func<IScope, string> reader = Expr.TextReader(text, fieldRequired: true, pack: pack);
+                if (reader != null)
+                {
+                    NoteMemory(pack, text, at, write: false);
+                    return reader;
+                }
             }
             if (arg is Node n) return RichArg(n, pack, at);
             Value value = ValueOf(arg, pack, at);
@@ -1416,7 +1451,7 @@ namespace ExpeditionFramework.Core
             if (node is bool b) { int n = b ? 1 : 0; return s => n; }
             if (node is string text)
             {
-                Value value = Expr.Compile(text, out string error, name => NamedValue(pack, name, at), HasMod);
+                Value value = Expr.Compile(text, out string error, name => NamedValue(pack, name, at), HasMod, pack, path => NoteMemory(pack, path, at, write: false));
                 if (error != null)
                 {
                     Problem(at, error);
@@ -1638,6 +1673,9 @@ namespace ExpeditionFramework.Core
             }
 
             public void Warn(string message) => loader.Warn(Path, message);
+
+            /// <summary>Notes a memory path this spec's pack reads or writes; see PackLoader.NoteMemory.</summary>
+            internal void NoteMemory(string path, bool write) => loader.NoteMemory(PackId, path, Path, write);
 
             public bool Flag(string key, bool fallback)
             {

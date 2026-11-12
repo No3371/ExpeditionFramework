@@ -123,6 +123,16 @@ namespace ExpeditionFramework.Core
         string Localize(string pack, string key, object[] args);
     }
 
+    /// <summary>
+    /// Where memory.* paths find the store. Kept off IRun, which is the public API: putting it there would make every
+    /// IRun implementation outside this assembly provide a store. A run that isn't a host, or a host without a store, reads
+    /// memory as 0 and "" and drops writes.
+    /// </summary>
+    internal interface IMemoryHost
+    {
+        IMemory Memory { get; }
+    }
+
     internal static class Lines
     {
         /// <summary>The line to use right now: the line itself, or its first case that holds. Null if none does.</summary>
@@ -167,7 +177,7 @@ namespace ExpeditionFramework.Core
     }
 
     /// <summary>Plays one expedition from compiled content. Knows nothing about Unity or specific content.</summary>
-    public sealed partial class ExpeditionRun : IRun, ITextHost
+    public sealed partial class ExpeditionRun : IRun, ITextHost, IMemoryHost
     {
         public const string FrameworkPack = "expedition_framework";
 
@@ -341,6 +351,7 @@ namespace ExpeditionFramework.Core
         public void SetText(string variable, string value) => texts[variable] = value;
         public IEntity Role(string name) => roles.TryGetValue(name, out Entity e) ? e : null;
         public int Game(string name) => Bridge.GameValue(name);
+        IMemory IMemoryHost.Memory => Bridge.Memory;
 
         public void Log(string tone, string text)
         {
@@ -1084,19 +1095,25 @@ namespace ExpeditionFramework.Core
         }
     }
 
-    /// <summary>Lets the map show lines and check conditions when no run is going.</summary>
-    public sealed class MapContext : IRun, ITextHost
+    /// <summary>
+    /// Lets the map show lines and check conditions when no run is going. Given a memory, memory.* there reads the same
+    /// store runs write, so a condition can hide an area or quiet the street until something has happened on an earlier night.
+    /// Without one, memory reads 0 and "".
+    /// </summary>
+    public sealed class MapContext : IRun, ITextHost, IMemoryHost
     {
         private readonly Localizer localize;
         private readonly Func<string, int> game;
+        private readonly IMemory memory;
         private readonly Dictionary<string, string> texts = new Dictionary<string, string>();
         private readonly Entity nobody = new Entity("nobody", "", true, new string[0]);
 
-        public MapContext(string areaId, Localizer localize, Func<string, int> game)
+        public MapContext(string areaId, Localizer localize, Func<string, int> game, IMemory memory = null)
         {
             AreaId = areaId;
             this.localize = localize;
             this.game = game;
+            this.memory = memory;
             Root = new Scope(this, nobody, null, null);
         }
 
@@ -1137,6 +1154,7 @@ namespace ExpeditionFramework.Core
         public void Finish(string outcome) { }
         public int Damage(IEntity target, int amount, IEntity source, bool pierce) => 0;
         string ITextHost.Localize(string pack, string key, object[] args) => localize(pack, key, args);
+        IMemory IMemoryHost.Memory => memory;
 
         public string Render(Line line) => Lines.Render(line, Root);
 
@@ -1161,14 +1179,22 @@ namespace ExpeditionFramework.Core
     /// <summary>Works out what the street says about an area today.</summary>
     public static class IntelRoller
     {
-        /// <summary>For each slot, the positions in its pool that were picked. <paramref name="roll"/> gives 1 to sides.</summary>
-        public static Dictionary<string, List<int>> Roll(AreaDef area, Func<int, int> roll)
+        /// <summary>
+        /// For each slot, the positions in its pool that were picked. <paramref name="roll"/> gives 1 to sides. A slot whose
+        /// when doesn't hold at <paramref name="scope"/> picks nothing and rolls no dice, so adding a when to one slot doesn't
+        /// shift what the others pick. The check runs here, once per rolled day, rather than when a card asks whether it can
+        /// start: that would run on every check and let a card appear or vanish mid-day as memory changes.
+        /// </summary>
+        public static Dictionary<string, List<int>> Roll(AreaDef area, Func<int, int> roll, IScope scope)
         {
             var result = new Dictionary<string, List<int>>();
             foreach (IntelSlot slot in area.Intel)
             {
                 var picks = new List<int>();
+                // Every slot is a key, including gated and poolless ones: IntelCards.Rolled indexes the result for each slot,
+                // so registering after the early continues below would throw KeyNotFoundException in the game.
                 result[slot.Id] = picks;
+                if (slot.When != null && !slot.When(scope)) continue;
                 if (!area.Pools.TryGetValue(slot.Pool, out List<string> pool)) continue;
                 var open = Enumerable.Range(0, pool.Count).ToList();
                 for (int n = HowMany(slot, roll); n > 0 && open.Count > 0; n--)

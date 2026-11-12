@@ -40,6 +40,10 @@ internal static class Program
         TestSpawnOutsideFight();
         TestRenderingDoesNotRoll();
         TestReloadUsesWholeItems();
+        TestMemory();
+        TestMapMemory();
+        TestGameReads();
+        TestMemoryWarnings();
         if (content.Problems.Count > 0) return Finish();
         TestWeakPointOptions(content, text);
         Play(content, text, int.Parse(Environment.GetEnvironmentVariable("SIM_RUNS") ?? "5000"));
@@ -498,6 +502,185 @@ internal static class Program
         Check(run.Log_.Count(l => l.Tone == "bad" && l.Text.Contains("outside a fight")) == 1, "spawn outside a fight should log one bad line");
     }
 
+    // memory.* belongs to the pack that wrote the data and lives in the bridge's store, so it outlasts a run.
+    private static void TestMemory()
+    {
+        string Pack(string enter) => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": " + enter + @" } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] } }
+        }";
+        var set = new PackSet(new Registry());
+        set.Add("a", "ExpeditionFramework/main.json", f => Pack(@"[
+            { ""add"": { ""var"": ""memory.visits"", ""value"": 1 } },
+            { ""set"": { ""var"": ""run.seen"", ""value"": ""memory.visits"" } },
+            { ""if"": { ""when"": ""memory.visits >= 2"", ""then"": [ { ""set"": { ""var"": ""run.again"", ""value"": 1 } } ] } },
+            { ""set_text"": { ""var"": ""memory.$who"", ""value"": ""player.name"" } },
+            { ""set_text"": { ""var"": ""run.$who"", ""value"": ""memory.$who"" } },
+            { ""set_text"": { ""var"": ""run.$greet"", ""line"": ""hi_{memory.$who}"" } }
+        ]"));
+        set.Add("b", "ExpeditionFramework/main.json", f => Pack(@"[ { ""set"": { ""var"": ""memory.visits"", ""value"": 100 } } ]"));
+        Content content = set.Compile(out Dictionary<string, List<string>> problems);
+        Check(problems.Values.All(l => l.Count == 0), "memory packs: " + string.Join("; ", problems.Values.SelectMany(l => l)));
+        if (problems.Values.Any(l => l.Count > 0)) return;
+
+        ExpeditionRun Play(string area, IMemory memory)
+        {
+            var run = new ExpeditionRun(content, content.Areas[area], new FakeBridge(new Random(1), memory: memory), n => 1, (p, k, a) => k, "you");
+            run.Begin();
+            return run;
+        }
+        var store = new MemoryStore();
+        ExpeditionRun first = Play("a:a", store);
+        Check(first.Get("seen") == 1 && first.Get("again") == 0, "first run sees memory.visits 1: " + first.Get("seen"));
+        ExpeditionRun second = Play("a:a", store);
+        Check(second.Get("seen") == 2 && second.Get("again") == 1, "second run sees the first run's memory: " + second.Get("seen"));
+        Check(second.GetText("who") == "you" && second.GetText("greet") == "hi_you", "memory text reads back: " + second.GetText("who") + " / " + second.GetText("greet"));
+        Play("b:a", store);
+        Check(store.Get("b", "visits") == 100 && store.Get("a", "visits") == 2, "packs keep separate memory: a=" + store.Get("a", "visits") + " b=" + store.Get("b", "visits"));
+        Check(store.GetText("a", "who") == "you" && store.GetText("b", "who") == "", "memory text is per pack too");
+        Check(Play("a:a", new MemoryStore()).Get("seen") == 1, "a fresh store starts empty");
+
+        string Enter(string effect) => "{\"rooms\":{\"r\":{\"text\":\"k\",\"enter\":[" + effect + "]}}}";
+        List<string> p = ProblemsIn(Enter("{\"set\":{\"var\":\"memory.$x\",\"value\":1}}"));
+        Check(p.Count == 1, "set on memory.$x is one problem: " + string.Join("; ", p));
+        p = ProblemsIn(Enter("{\"add\":{\"var\":\"memory.$x\",\"value\":1}}"));
+        Check(p.Count == 1, "add on memory.$x is one problem: " + string.Join("; ", p));
+        p = ProblemsIn(Enter("{\"set_text\":{\"var\":\"memory.x\",\"value\":\"player.name\"}}"));
+        Check(p.Count == 1, "set_text on memory.x is one problem: " + string.Join("; ", p));
+        Expr.Compile("memory.x", out string packless);
+        Check(packless != null, "memory.x without a pack should not compile");
+        Expr.Compile("memory.x + 1", out string owned, pack: "t");
+        Check(owned == null, "memory.x with a pack compiles: " + owned);
+    }
+
+    // On the map, hidden_when, an intel slot's when and its line cases read the memory the map was given.
+    private static void TestMapMemory()
+    {
+        var set = new PackSet(new Registry());
+        set.Add("a", "ExpeditionFramework/main.json", f => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [
+            { ""set"": { ""var"": ""memory.unlocked"", ""value"": 1 } }, { ""add"": { ""var"": ""memory.heard"", ""value"": 1 } } ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ],
+            ""hidden_when"": ""memory.unlocked < 1"",
+            ""pools"": { ""leads"": [ ""r"" ] },
+            ""intel"": [
+              { ""id"": ""tip"", ""pool"": ""leads"", ""when"": ""memory.heard >= 1"", ""description"": ""k"",
+                ""title"": { ""cases"": [ { ""when"": ""memory.heard >= 2"", ""text"": ""loud"" }, { ""text"": ""quiet"" } ] } },
+              { ""id"": ""rumor"", ""pool"": ""leads"", ""title"": ""k"", ""description"": ""k"" }
+            ] } }
+        }");
+        Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
+        string all = string.Join("; ", problems.Values.SelectMany(l => l).Concat(warnings.Values.SelectMany(l => l)));
+        Check(problems.Values.All(l => l.Count == 0) && warnings.Values.All(l => l.Count == 0), "map memory pack loads cleanly: " + all);
+        if (problems.Values.Any(l => l.Count > 0)) return;
+
+        AreaDef area = content.Areas["a:a"];
+        int Picks(MapContext m, string slot) => IntelRoller.Roll(area, n => 1, m.Root)[slot].Count;
+
+        var bare = new MapContext(area.Id, (p, k, a) => k, name => 0);
+        Check(area.HiddenWhen(bare.Root) && Picks(bare, "tip") == 0, "a map without memory reads it as 0");
+
+        var store = new MemoryStore();
+        var map = new MapContext(area.Id, (p, k, a) => k, name => 0, store);
+        Check(area.HiddenWhen(map.Root), "the area stays hidden until memory unlocks it");
+        Check(Picks(map, "tip") == 0 && Picks(map, "rumor") == 1, "an intel slot whose when fails names nothing; one without when still rolls");
+        store.Set("a", "unlocked", 1);
+        store.Set("a", "heard", 1);
+        Check(!area.HiddenWhen(map.Root), "memory unlocks the area on the map");
+        Check(Picks(map, "tip") == 1 && Picks(map, "rumor") == 1, "an intel slot whose when holds rolls as usual");
+        Check(map.Render(area.Intel[0].Title) == "quiet", "intel line cases read memory on the map: " + map.Render(area.Intel[0].Title));
+        store.Set("a", "heard", 2);
+        Check(map.Render(area.Intel[0].Title) == "loud", "intel line cases follow memory: " + map.Render(area.Intel[0].Title));
+        // A gated slot rolls no dice, so the slots after it draw the same dice they would without it: the log of requested
+        // sides starts with rumor's own count roll and pick roll.
+        var sides = new List<int>();
+        Func<int, int> logged = n => { sides.Add(n); return 1; };
+        store.Set("a", "heard", 0);
+        Dictionary<string, List<int>> gatedRoll = IntelRoller.Roll(area, logged, map.Root);
+        Check(gatedRoll.ContainsKey("tip") && gatedRoll["tip"].Count == 0, "a gated slot stays a key with no picks");
+        Check(string.Join(",", sides) == "100,1", "a gated slot consumes no dice: " + string.Join(",", sides));
+        sides.Clear();
+        store.Set("a", "heard", 1);
+        IntelRoller.Roll(area, logged, map.Root);
+        Check(string.Join(",", sides) == "100,1,100,1", "an open slot rolls its own dice first: " + string.Join(",", sides));
+        var other = new MemoryStore();
+        other.Set("b", "unlocked", 1);
+        Check(area.HiddenWhen(new MapContext(area.Id, (p, k, a) => k, name => 0, other).Root), "another pack's memory doesn't unlock this area");
+    }
+
+    // game.clears reads the reading area's clears and game.clears.AREA another area of its pack, so hidden_when can
+    // unlock an area on a clear OR on memory.
+    private static void TestGameReads()
+    {
+        Check(GameReads.ClearsArea("clears", "a:cellar") == "a:cellar", "game.clears counts the reading area");
+        Check(GameReads.ClearsArea("clears.vault", "a:cellar") == "a:vault", "game.clears.AREA counts AREA of the reading area's pack");
+        Check(GameReads.ClearsArea("clears.", "a:cellar") == null && GameReads.ClearsArea("clearsvault", "a:cellar") == null
+            && GameReads.ClearsArea("day", "a:cellar") == null && GameReads.ClearsArea(null, "a:cellar") == null, "other names aren't clears reads");
+
+        var set = new PackSet(new Registry());
+        set.Add("a", "ExpeditionFramework/main.json", f => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [ { ""set"": { ""var"": ""memory.key"", ""value"": 1 } } ] } },
+          ""areas"": {
+            ""vault"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] },
+            ""cellar"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ],
+              ""hidden_when"": ""game.clears.vault < 1 && memory.key < 1"" } }
+        }");
+        Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
+        string all = string.Join("; ", problems.Values.SelectMany(l => l).Concat(warnings.Values.SelectMany(l => l)));
+        Check(problems.Values.All(l => l.Count == 0) && warnings.Values.All(l => l.Count == 0), "game reads pack loads cleanly: " + all);
+        if (problems.Values.Any(l => l.Count > 0)) return;
+
+        AreaDef cellar = content.Areas["a:cellar"];
+        var asked = new List<string>();
+        int vaultClears = 0;
+        var store = new MemoryStore();
+        var map = new MapContext(cellar.Id, (p, k, a) => k, name => { asked.Add(name); return name == "clears.vault" ? vaultClears : 0; }, store);
+        Check(cellar.HiddenWhen(map.Root), "the cellar stays hidden before the vault is cleared or the key remembered");
+        Check(asked.Contains("clears.vault"), "game.clears.AREA reaches the host as clears.AREA: " + string.Join(",", asked));
+        vaultClears = 1;
+        Check(!cellar.HiddenWhen(map.Root), "clearing the vault unlocks the cellar");
+        vaultClears = 0;
+        store.Set("a", "key", 1);
+        Check(!cellar.HiddenWhen(map.Root), "remembering the key also unlocks the cellar");
+    }
+
+    // A memory name a pack reads but never writes always reads 0 or "", so loading warns once per name, at its first read.
+    // Another pack's write doesn't count, and memory.count and memory.$count are different names.
+    private static void TestMemoryWarnings()
+    {
+        var set = new PackSet(new Registry());
+        set.Add("a", "ExpeditionFramework/main.json", f => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [
+            { ""add"": { ""var"": ""memory.kept"", ""value"": 1 } },
+            { ""set"": { ""var"": ""memory.count"", ""value"": 1 } },
+            { ""set_text"": { ""var"": ""memory.$name"", ""value"": ""player.name"" } },
+            { ""set"": { ""var"": ""run.x"", ""value"": ""memory.kept + memory.ghost + memory.ghost"" } },
+            { ""set_text"": { ""var"": ""run.$y"", ""value"": ""memory.$name"" } },
+            { ""set_text"": { ""var"": ""run.$z"", ""value"": ""memory.$lost"" } },
+            { ""set_text"": { ""var"": ""run.$w"", ""line"": ""hi_{memory.$gone}"" } },
+            { ""set"": { ""var"": ""run.v"", ""value"": ""memory.theirs"" } },
+            { ""set_text"": { ""var"": ""run.$c"", ""value"": ""memory.$count"" } }
+          ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ], ""hidden_when"": ""memory.ghost > 0"" } }
+        }");
+        set.Add("b", "ExpeditionFramework/main.json", f => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [ { ""set"": { ""var"": ""memory.theirs"", ""value"": 1 } } ] } }
+        }");
+        set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
+        Check(problems.Values.All(l => l.Count == 0), "memory warning packs: " + string.Join("; ", problems.Values.SelectMany(l => l)));
+        List<string> a = warnings.TryGetValue("a", out List<string> wa) ? wa : new List<string>();
+        string all = string.Join("; ", a);
+        const string Unwritten = " is read but never written by this pack";
+        foreach (string name in new[] { "ghost", "$lost", "$gone", "theirs", "$count" })
+        {
+            Check(a.Count(w => w.Contains("memory." + name + Unwritten)) == 1, "one warning for memory." + name + ": " + all);
+        }
+        Check(a.Count == 5, "exactly the five unwritten names warn: " + all);
+        Check(a.Any(w => w.Contains("memory.ghost" + Unwritten + ", so it always reads 0")), "a number warning says it reads 0: " + all);
+        Check(a.Any(w => w.Contains("memory.$lost" + Unwritten + ", so it always reads \"\"")), "a text warning says it reads \"\": " + all);
+        Check(!warnings.TryGetValue("b", out List<string> wb) || wb.Count == 0, "a pack that only writes doesn't warn: " + string.Join("; ", wb ?? new List<string>()));
+    }
+
     // An ammo item is worth its `rounds` in any gun, and reload uses as many items as it takes to fill the gun.
     private static void TestReloadUsesWholeItems()
     {
@@ -814,9 +997,10 @@ internal static class Program
         private readonly Random random;
         private readonly List<RunItem> items = new List<RunItem>();
 
-        public FakeBridge(Random random, bool withEverything = false)
+        public FakeBridge(Random random, bool withEverything = false, IMemory memory = null)
         {
             this.random = random;
+            Memory = memory ?? new MemoryStore();
             Add("kitchen_knife", "#melee #in_hand", ("bonus", 1), ("sides", 4));
             if (!withEverything) return;
             Add("pistol", "#firearm #in_hand", ("capacity", 6), ("firepower", 4), ("accuracy", 2));
@@ -861,6 +1045,7 @@ internal static class Program
         public void LoseFound() { }
         public List<string> LoseCarried(Func<int, int> chanceForSize) => new List<string>();
         public int GameValue(string name) => 0;
+        public IMemory Memory { get; }
         public void Wound(string kind) { }
         public void NightLog(string text, string color) { }
         public void PlaySound(string id) { }

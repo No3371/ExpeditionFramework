@@ -56,7 +56,7 @@ namespace ExpeditionFramework.Game
             this.content = content;
             this.area = area;
             bagReader = new ItemReader(content);
-            map = new MapContext(area.Id, (pack, key, args) => ModHelper.GetLocalized(pack, key, args), GameValues.Get);
+            map = new MapContext(area.Id, (pack, key, args) => ModHelper.GetLocalized(pack, key, args), name => GameValues.Get(name, area.Id), new SaveMemory());
             intel = new IntelCards(area, Id, map);
         }
 
@@ -102,7 +102,7 @@ namespace ExpeditionFramework.Game
         {
             if (area.HiddenWhen != null && area.HiddenWhen(map.Root)) return false;
             if (area.UnlockedBy == null) return true;
-            return PlayerStore.HasInstance && PlayerStore.Instance.GetAfterhourState(LocationId(area.UnlockedBy)).GetCounter(ClearsCounter) > 0;
+            return GameValues.Clears(area.UnlockedBy) > 0;
         }
 
         public override bool IsAvailable() => base.IsAvailable() && Missing().Count == 0;
@@ -121,7 +121,7 @@ namespace ExpeditionFramework.Game
         public override void Arrive()
         {
             GameBridge.OpenAmmoBoxes();
-            run = new ExpeditionRun(content, area, new GameBridge(content, area.Pack, trade, sounds), sides => RNG.GetRandomInt(1, sides),
+            run = new ExpeditionRun(content, area, new GameBridge(content, area, trade, sounds), sides => RNG.GetRandomInt(1, sides),
                 (pack, key, args) => ModHelper.GetLocalized(pack, key, args), ModEntry.L("ef_player"), intel.Today());
             run.Begin();
         }

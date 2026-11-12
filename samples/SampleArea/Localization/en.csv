@@ -34,4 +34,5 @@ sa_room_drain,The floor falls away into a wide drain.
 sa_room_store,Rotten shelving leans over a dry patch of floor.
 sa_room_office,A lit office at the end of the tunnel. Someone is in it.
 sa_foreman_down,The office goes quiet.
+sa_foreman_grudge,The Foreman knows your face. Times you have beaten him: {0}.
 sa_action_claim,Take what the Foreman was guarding

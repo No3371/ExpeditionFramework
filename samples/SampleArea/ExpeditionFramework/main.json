@@ -113,7 +113,14 @@
           ]
         }
       ],
-      "on": { "defeated": [ { "credits": "2d20 + 10" }, { "set": { "var": "run.boss_down", "value": 1 } } ] }
+      // memory.foreman_beaten outlasts the run: it is kept in the player's save, so the count grows night after night.
+      "on": {
+        "defeated": [
+          { "credits": "2d20 + 10" },
+          { "set": { "var": "run.boss_down", "value": 1 } },
+          { "add": { "var": "memory.foreman_beaten", "value": 1 } }
+        ]
+      }
     }
   },
 
@@ -198,7 +205,13 @@
     "office": {
       "tags": ["final"],
       "text": "sa_room_office",
-      "enter": [ { "fight": { "from": ["foreman"], "won": [ { "say": { "text": "sa_foreman_down", "tone": "good" } } ] } } ],
+      "enter": [
+        { "if": {
+          "when": "memory.foreman_beaten > 0",
+          "then": [ { "say": { "text": "sa_foreman_grudge", "args": ["memory.foreman_beaten"], "tone": "bad" } } ]
+        } },
+        { "fight": { "from": ["foreman"], "won": [ { "say": { "text": "sa_foreman_down", "tone": "good" } } ] } }
+      ],
       "interactions": [
         { "id": "claim", "label": "sa_action_claim", "group": "explore", "when": "run.boss_down", "do": [ { "give_loot": "cellar_scraps" }, { "leave": "cleared" } ] }
       ]

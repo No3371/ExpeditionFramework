@@ -105,7 +105,7 @@ namespace ExpeditionFramework.Game
             int today = StoreStation.Instance.dayCounter;
             if (state.GetCounter(DayCounter) == today) return true;
             state.SetCounter(DayCounter, today);
-            Dictionary<string, List<int>> picks = IntelRoller.Roll(area, sides => RNG.GetRandomInt(1, sides));
+            Dictionary<string, List<int>> picks = IntelRoller.Roll(area, sides => RNG.GetRandomInt(1, sides), map.Root);
             foreach (IntelSlot slot in area.Intel)
             {
                 for (int i = 0; i < slot.MaxPicks; i++)

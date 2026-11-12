@@ -266,23 +266,28 @@ namespace ExpeditionFramework.Core
             r.Effects["add"] = c => Assign(c, (old, v) => old + v);
             r.Effects["set_text"] = c =>
             {
-                Action<IScope, string> write = Expr.TextWriter(c.Require("var") ?? "");
+                string target = c.Require("var") ?? "";
+                Action<IScope, string> write = Expr.TextWriter(target, c.PackId);
                 if (write == null)
                 {
-                    c.Error("\"var\" must be a path like run.$name or self.$name");
+                    c.Error("\"var\" must be a path like run.$name, memory.$name or self.$name");
                     return s => { };
                 }
+                var spec = c as PackLoader.Spec;
+                spec?.NoteMemory(target, write: true);
                 if (c.Has("line"))
                 {
-                    ILine line = c.Line("line");
+                    ILine line = c.Line("line");   // its {memory.$x} pieces are noted where the line compiles
                     return s => write(s, line.Render(s));
                 }
-                Func<IScope, string> read = Expr.TextReader(c.Require("value") ?? "", fieldRequired: false);
+                string source = c.Require("value") ?? "";
+                Func<IScope, string> read = Expr.TextReader(source, fieldRequired: false, pack: c.PackId);
                 if (read == null)
                 {
                     c.Error("\"value\" must be a path like item.name, or use \"line\"");
                     return s => { };
                 }
+                spec?.NoteMemory(source, write: false);
                 return s => write(s, read(s));
             };
         }
@@ -338,11 +343,11 @@ namespace ExpeditionFramework.Core
         private static Effect Assign(ISpec c, Func<int, int, int> apply)
         {
             string path = c.Require("var") ?? "";
-            Value read = Expr.Reader(path, raw: true);
-            Action<IScope, int> write = Expr.Writer(path);
+            Value read = Expr.Reader(path, raw: true, pack: c.PackId);
+            Action<IScope, int> write = Expr.Writer(path, c.PackId);
             if (read == null || write == null)
             {
-                c.Error("\"var\" must be a path like run.alarm or self.armor");
+                c.Error("\"var\" must be a path like run.alarm, memory.debt or self.armor");
                 return s => { };
             }
             if (path.StartsWith("run.") && Array.IndexOf(ExpeditionRun.EngineVars, path.Substring(4)) >= 0)
@@ -350,6 +355,8 @@ namespace ExpeditionFramework.Core
                 c.Error(path + " is kept by the engine; set and add can't change it");
                 return s => { };
             }
+            // add reads its own var too, but only to change it, so set and add both count as writing it.
+            (c as PackLoader.Spec)?.NoteMemory(path, write: true);
             Value value = c.Value("value", 0);
             return s => write(s, apply(read(s), value(s)));
         }

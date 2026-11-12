@@ -13,11 +13,12 @@ internal sealed class KitBridge : IBridge
     private readonly List<RunItem> items = new List<RunItem>();
     private readonly List<RunItem> ground = new List<RunItem>();
 
-    public KitBridge(SimKit kit, SimBridge settings, Content content, Random random, HashSet<string> problems)
+    public KitBridge(SimKit kit, SimBridge settings, Content content, Random random, HashSet<string> problems, IMemory memory = null)
     {
         this.settings = settings;
         this.random = random;
         this.problems = problems;
+        Memory = memory ?? new MemoryStore();
         Credits = kit.Credits;
         foreach (SimItem s in kit.Items)
         {
@@ -80,6 +81,8 @@ internal sealed class KitBridge : IBridge
 
     public int GameValue(string name) =>
         settings.CoinGame.Contains(name) ? random.Next(2) : settings.Game.TryGetValue(name, out int value) ? value : 0;
+    // The row's store when sim.json gives the row memory; otherwise an empty one for this run alone.
+    public IMemory Memory { get; }
     public void Wound(string kind) { }
     public void NightLog(string text, string color) { if (text != null && text.Contains("{")) problems.Add("unfilled night log: " + text); }
     public void PlaySound(string id) { }

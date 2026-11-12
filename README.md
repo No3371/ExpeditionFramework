@@ -22,7 +22,8 @@ Ids belong to the pack that defines them. Write `rat` inside your pack and `othe
 Problems are logged with their location, such as `my_mod/ExpeditionFramework/main.json.rooms.a.enter[0]: unknown effect "nope"`.
 Problems (broken structure, values of the wrong type, references to things that don't exist) stop a pack's areas loading.
 Warnings are likely mistakes that don't: keys a definition doesn't have (the message lists the ones it does), arguments an
-effect or condition never reads, unknown tones, `#tags` no item can have, and `weight`, `when` or `tags` on kinds that
+effect or condition never reads, unknown tones, `#tags` no item can have, `memory.` names a pack reads but never writes,
+and `weight`, `when` or `tags` on kinds that
 ignore them (only rooms, events, encounters and enemies are picked by weight, condition or tag). They are logged as
 `warning: …` and the pack still loads.
 
@@ -104,11 +105,11 @@ Areas also control how they appear and play on screen:
 
 | Field | What it does |
 |---|---|
-| `hidden_when` | Condition that keeps the area off the map |
+| `hidden_when` | Condition that keeps the area off the map. It can read `memory.` and `game.` (see [Memory across nights](#memory-across-nights)) |
 | `ambience`, `art` | The game's ambience id, and a sprite id under `Textures/Items` (defaults to the area's own id) |
 | `pools` | Named id lists that layouts, encounters and intel draw from |
 | `packing` | `needs` (items that must be in the backpack or in hand, each with a `missing` text), `no_backpack` (shown when carrying neither), `card` |
-| `intel` | Daily map cards: `id`, `pool`, `chance`, `counts`, `title`, `description`, `effect`, `tone`, `good`. Read during a run with `intel(slot)` |
+| `intel` | Daily map cards: `id`, `pool`, `chance`, `counts`, `title`, `description`, `effect`, `tone`, `good`, `when`. Read during a run with `intel(slot)`. A slot whose `when` doesn't hold when the day's cards are rolled shows nothing that day |
 | `hud` | `title`, `rows` (`when`, `parts`, or `separator`) and `enemies` (`line`, `pending`, `none`, `pending_scenes`) |
 | `groups` | Order of the button groups. Each group's heading is the text key `ef_group_<name>` |
 | `texts` | Replaces framework strings for this area, by key |
@@ -166,7 +167,7 @@ show the first text. So a button whose `when` uses `chance` always shows, and on
 
 **Expressions** go wherever a number or condition is expected: `60 + item.accuracy * 5 - target.dodge`, `2d6+1`,
 `self.hp <= 5 && run.depth >= 2`. Paths start with `self`, `target`, `player`, `item`, `with` (the second item of a pair),
-`arg`, `val` (a named value), `game` or `run`. `run` also has `depth`, `rooms`, `rooms_left`, `turn`, `enemies`,
+`arg`, `val` (a named value), `game`, `run` or `memory` (see [Memory across nights](#memory-across-nights)). `run` also has `depth`, `rooms`, `rooms_left`, `turn`, `enemies`,
 `credits`, `ground` and `scheduled`, kept by the engine: `set` or `add` on them, or an area's `vars` naming them, is a
 problem. Unknown names read as 0, so any new stat or variable just works. Functions include `carried`, `best_item`,
 `intel`, `list_size`, `mod`, `min`, `max`, `clamp`, `dice`, `scheduled` and `count_enemies`, `any_enemy`, `all_enemies`,
@@ -177,7 +178,11 @@ the last give worked), `found_items`, `natural` and `total` (the last check or r
 `cart_taken`, `cleared_ground`, `reload_used` (ammo items the last reload took), and `outcome_<outcome>` when the run ends. Texts: `run.$lost`, `run.$taken`,
 `run.$scheduled` and `run.$pick`.
 
-`game` reads the player outside the run: `game.luck`, `game.roll_luck`, `game.wounds`, `game.maimed`.
+`game` reads the player outside the run: `game.luck`, `game.roll_luck`, `game.wounds`, `game.maimed`, `game.day` (the
+game's day counter, 0 with no save loaded), `game.clears` (how many times the player has cleared this area) and
+`game.clears.AREA` (the same for another area of this pack, such as `game.clears.flooded_cellar`). A clear counts when the
+player leaves an area after a run that ended `cleared` or with `run.cleared` above 0, so during a run these count earlier
+nights, not tonight. They work on the map too.
 
 **Effects** are lists, or objects with one effect name:
 
@@ -217,6 +222,42 @@ Effects and conditions that take nothing are written with `true`, like `{"next_r
 `item_stats`, including `capacity`, to which attached parts add their `capacity_bonus`. An item with the `melee` tag in
 `item_stats` is treated as a melee weapon even if the game doesn't class it as one. A run's item props, such as a gun's
 `loaded`, last until the run ends.
+
+## Memory across nights
+
+`run.` variables last one run. `memory.` values stay in the player's save from night to night, so a pack can keep a
+count, remember a name, or open something up after an earlier night.
+
+```json
+{ "add": { "var": "memory.foreman_beaten", "value": 1 } }
+{ "set_text": { "var": "memory.$rival", "value": "target.name" } }
+{ "if": { "when": "memory.foreman_beaten >= 3", "then": [ ... ] } }
+```
+
+- `memory.NAME` holds a whole number and `memory.$NAME` holds text. They are separate values, even with the same NAME.
+  Use them as you would `run.NAME` and `run.$NAME`: in expressions and conditions, as the `var` of `set`, `add` and
+  `set_text`, and in text `args`. A name never written reads 0, or "" as text.
+- Names are fixed: write each one out in full in the data.
+- Each pack has its own memory. Two packs that both write `memory.visits` keep separate counts.
+- A write goes into the save straight away, so it stays however the run ends. The game keeps memory in the save's mod
+  data under the framework's own mod id, so every save has its own and a new game starts with none. With no save loaded,
+  memory reads 0 and "" and writes do nothing.
+- The map reads memory too. An area's `hidden_when` and an intel slot's `when` can test `memory.` and `game.` (`run.`
+  reads 0 there). Intel is rolled once a day, so what a run writes tonight changes the street's cards from the next day.
+- `unlocked_by` puts an area on the map once the area it names has been cleared, and `hidden_when` keeps it off while its
+  condition holds. With both, the area needs both. To open an area on either, leave out `unlocked_by` and test both in
+  `hidden_when`:
+
+  ```json
+  "hidden_when": "game.clears.flooded_cellar == 0 && memory.met_smuggler == 0"
+  ```
+
+- Loading warns about a `memory.` name a pack reads but never writes, such as `memory.ghost is read but never written by
+  this pack, so it always reads 0`. It is usually a typo. `ef-sim lint --strict` fails on it.
+- In `ef-sim`, memory lasts one run unless a `sim.json` row asks for more (see [Memory](#memory) under ef-sim run).
+
+`samples/SampleArea` counts the Foreman's defeats in `memory.foreman_beaten`, and the Foreman mentions the count when you
+reach his office again. Its `sim.json` carries the count across 500 runs and checks it.
 
 ## The C# API
 
@@ -287,6 +328,15 @@ runs first. A handler that throws is logged in the run and skipped, and one that
 Button previews show the odds written in data and don't run interceptors. To use another mod's hook under `on`, load
 after that mod.
 
+The API has no memory calls of its own. A C# effect or condition reaches memory through what it compiles from data:
+expressions read with `spec.Value`, and effects and conditions read with `spec.Effect` and `spec.Condition`, read and
+write `memory.` for the pack whose data uses them, as data does.
+
+Code that runs the engine itself, as `tests/Sim` and `ef-sim` do, provides memory through `IBridge.Memory`
+(`MemoryStore` keeps it in memory). `MapContext` takes a store as its optional last argument for map-time reads; without
+one, memory reads 0 and "". `IntelRoller.Roll` takes the scope that intel slots' `when` is checked against, such as a
+`MapContext`'s `Root`.
+
 ## Building and testing
 
 ```bash
@@ -326,7 +376,7 @@ other ending (cleared runs included). A run stopped by a guard counts in none.
 
 Checks, each a `FAIL` line: load problems and missing text keys (as in `lint`), text missing or given too few arguments at run
 time, option labels or night-log lines left with an unfilled `{`, a run that never ends (over 2000 steps), a scene with no
-options, a run that throws, a decision no rule of the row's bot picks an option for, and every `expect.offered` option id that no run was offered, every `expect.packing` case that comes out different (see Packing below), and every `expect.loot` case whose rolls break its rule (see Loot below). Load warnings print as `WARN` and
+options, a run that throws, a decision no rule of the row's bot picks an option for, and every `expect.offered` option id that no run was offered, every `runs[n].memory.expect` value that comes out different (see Memory below), every `expect.packing` case that comes out different (see Packing below), and every `expect.loot` case whose rolls break its rule (see Loot below). Load warnings print as `WARN` and
 never fail. Exits 0 when all checks pass, 1 when any fails, 2 on bad arguments or a missing or malformed `sim.json`.
 
 `sim.json` version 1:
@@ -349,7 +399,7 @@ never fail. Exits 0 when all checks pass, 1 when any fails, 2 on bad arguments o
 
 `version`, `kits`, `runs` and each item `id`, row `area`, `kit` and `runs` are required; `runs` must be above 0. Defaults:
 `credits` 0, `items` empty, `count` 1, `tags` and `props` empty, `bot` `random`, `seed` 42 plus the row's index, `expect`
-empty. Unknown keys are errors, and numbers must be whole. Tags may start with `#`. An `area` without `:` gets the pack's id
+empty, row `memory` none (see Memory below). Unknown keys are errors, and numbers must be whole. Tags may start with `#`. An `area` without `:` gets the pack's id
 as prefix. A kit item's tags and props are layered over the pack's `item_stats` for that item,
 the kit's props winning. `samples/SampleArea/sim.json` is a working example.
 
@@ -379,7 +429,8 @@ whose id is not listed). `"target": "weakest"` limits `pick` to options aimed at
 foe on ties).
 
 In `when`, `self` and `player` are the player, `target` is the focused foe, and every other path and function works as in pack
-data (`run.depth`, `run.rooms`, `run.credits`, `run.<var>`, `any_enemy(target.hp < 3)`, …). Bots also read:
+data (`run.depth`, `run.rooms`, `run.credits`, `run.<var>`, `any_enemy(target.hp < 3)`, …) except `memory.`, which bots
+can't read. Bots also read:
 
 | `val.` name | Value |
 |-------------|-------|
@@ -398,6 +449,27 @@ unknown `val.` name, a rule with neither or both of `pick` and `first_except`, a
 `weakest` or without `pick`, a bot named `random`, a bot with no rules, and a row naming an unknown bot. After the table, each
 rule of a bot that some row used and that never picked an option prints a `WARN` (often a mistyped id or a condition that never
 holds).
+
+#### Memory
+
+A run's `memory.` starts empty and is dropped when the run ends, so every run plays a first night. A row's `memory`
+changes that:
+
+```json
+{ "area": "flooded_cellar", "kit": "everything", "runs": 500, "seed": 45,
+  "memory": { "start": { "foreman_beaten": 1 }, "carry": true, "expect": { "foreman_beaten": { "min": 2 } } } }
+```
+
+| Key | What it does |
+|---|---|
+| `start` | What memory holds before the row's runs, by name without `memory.`: `"visits": 3` for a number, `"$rival": "Dex"` for text. Without `carry` every run starts from these; with it, only the first |
+| `carry` | `true` makes the row's runs share one memory, each run seeing what the runs before it wrote, like nights in a row. Default `false` |
+| `expect` | What memory must hold after the row's last run: a whole number (exactly), `{ "min": 1, "max": 5 }` (either may be left out), or text for a `$` name. Without `carry` it checks the last run alone |
+
+Each value that comes out different is a `FAIL` such as `runs[3]: memory.foreman_beaten should be at least 2, got 1`.
+Writing `memory.` in a name, an empty name, unknown keys, wrong types and `min` above `max` are errors (exit 2).
+`--runs` changes how many runs a carried row plays, so an exact `expect` on a carried count fails under it; use `min`
+and `max` where that matters.
 
 #### Packing
 
@@ -461,8 +533,8 @@ that, for packs whose balance depends on it:
 }
 ```
 
-`game` maps a name to a whole number, or to `coin`: 0 or 1 drawn from the run's random each time it is read. Unlisted
-names read 0. `trade.opens` (default `false`) lets the `trade` effect open; closing it then changes cash by minus a random
+`game` maps a name to a whole number, or to `coin`: 0 or 1 drawn from the run's random each time it is read. Names are
+written as after `game.`, such as `"day": 30` or `"clears.ne_sump": 2`. Unlisted names read 0. `trade.opens` (default `false`) lets the `trade` effect open; closing it then changes cash by minus a random
 0 to `lose_cash_up_to` (0 to 2147483646; left out: no change, nothing drawn) and buys nothing. `trade.cart` lists the names `take_cart`
 hands over (default none). `take_back` is `newest` (default) or `oldest`. `lose_carried` is `roll` (default: each carried
 item is lost with the effect's chance) or a list of names reported lost every time, with nothing removed or rolled. Every

@@ -255,6 +255,8 @@ namespace ExpeditionFramework.Core
         public Line Effect;
         public string Tone = "mixed";
         public HashSet<string> GoodPicks = new HashSet<string>();
+        /// <summary>Whether the street talks about this at all today, checked on the map when the day is rolled. Null means always.</summary>
+        public Condition When;
 
         public int MaxPicks => Counts != null ? Counts.Length - 1 : 1;
     }
@@ -414,7 +416,14 @@ namespace ExpeditionFramework.Core
         /// <summary>Destroys carried pieces, each with the percent chance <paramref name="chanceForSize"/> gives for its
         /// size in grid cells. Returns the names lost.</summary>
         List<string> LoseCarried(Func<int, int> chanceForSize);
+        /// <summary>
+        /// The player fact game.NAME reads, 0 for a name the host doesn't know. The game knows luck, roll_luck, wounds,
+        /// maimed, day (the game's own day counter) and clears / clears.AREA (how often the player has cleared the reading
+        /// area / AREA of its pack, see GameReads). A sim reads whatever its config lists for the name.
+        /// </summary>
         int GameValue(string name);
+        /// <summary>Where packs keep memory.* across nights. The game keeps it in the player's save; a sim can keep it in a MemoryStore.</summary>
+        IMemory Memory { get; }
         void Wound(string kind);
         void NightLog(string text, string color);
         void PlaySound(string id);
@@ -423,6 +432,49 @@ namespace ExpeditionFramework.Core
         TradeResult CloseTrade();
         /// <summary>Puts what's left on a trader's cart on the ground and returns the names.</summary>
         List<string> TakeCart(TradeRequest cart);
+    }
+
+    /// <summary>
+    /// The game.NAME reads the framework itself defines. game.clears counts how often the player has cleared the reading
+    /// area; game.clears.AREA counts AREA of the reading area's pack. The named form lets hidden_when unlock an area on
+    /// another area's clear OR on memory: unlocked_by is ANDed with hidden_when, so it can't say OR.
+    /// </summary>
+    internal static class GameReads
+    {
+        private const string Clears = "clears";
+
+        /// <summary>Qualified id of the area whose clears game.NAME counts, or null when NAME isn't a clears read.</summary>
+        public static string ClearsArea(string name, string areaId)
+        {
+            if (name == Clears) return areaId;
+            if (name == null || areaId == null || name.Length <= Clears.Length + 1 || !name.StartsWith(Clears + ".", StringComparison.Ordinal)) return null;
+            int colon = areaId.IndexOf(':');
+            return areaId.Substring(0, colon + 1) + name.Substring(Clears.Length + 1);
+        }
+    }
+
+    /// <summary>
+    /// Values a pack keeps across nights, as memory.NAME (numbers) and memory.$NAME (text). Each pack has its own names,
+    /// so two packs using the same name never see each other's value. Unset numbers read 0 and unset text "".
+    /// </summary>
+    public interface IMemory
+    {
+        int Get(string pack, string name);
+        void Set(string pack, string name, int value);
+        string GetText(string pack, string name);
+        void SetText(string pack, string name, string value);
+    }
+
+    /// <summary>Memory held in this process only, for sims and tests.</summary>
+    public sealed class MemoryStore : IMemory
+    {
+        private readonly Dictionary<(string, string), int> numbers = new Dictionary<(string, string), int>();
+        private readonly Dictionary<(string, string), string> texts = new Dictionary<(string, string), string>();
+
+        public int Get(string pack, string name) => numbers.TryGetValue((pack, name), out int v) ? v : 0;
+        public void Set(string pack, string name, int value) => numbers[(pack, name)] = value;
+        public string GetText(string pack, string name) => texts.TryGetValue((pack, name), out string v) ? v : "";
+        public void SetText(string pack, string name, string value) => texts[(pack, name)] = value ?? "";
     }
 
     public delegate string Localizer(string pack, string key, object[] args);

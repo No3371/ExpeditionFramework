@@ -54,11 +54,13 @@ internal static class PackRun
             };
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0,-18} {1,-12} {2,-8} {3,6} {4,8} {5,12} {6,10}",
                 "area", "kit", "bot", "runs", "cleared", "knocked out", "extracted"));
+            var memory = new List<string>();
             for (int r = 0; r < config.Rows.Count; r++)
             {
                 SimRow row = config.Rows[r];
                 config.Bots.TryGetValue(row.Bot, out RuleBot bot);
-                Play(content, areas[row.Area], row, row.Kits.Select(k => config.Kits[k]).ToList(), bot, config.Bridge, runsOverride > 0 ? runsOverride : row.Runs, localize, offered, problems);
+                IMemory last = Play(content, id, areas[row.Area], row, row.Kits.Select(k => config.Kits[k]).ToList(), bot, config.Bridge, runsOverride > 0 ? runsOverride : row.Runs, localize, offered, problems);
+                if (row.Memory != null) memory.AddRange(row.Memory.Check(id, last, "runs[" + r + "]"));
             }
             // A rule that never chose anything is usually a typo in its ids or a condition that can't hold; warn, don't fail.
             foreach (RuleBot used in config.Rows.Select(row => row.Bot).Distinct().Where(config.Bots.ContainsKey).Select(b => config.Bots[b]))
@@ -68,6 +70,7 @@ internal static class PackRun
             List<string> packing = CheckPacking(id, config, areas, localize);
             List<string> loot = CheckLoot(frameworkRoot, folder, id, content, config, localize, problems);
             failures.AddRange(problems.OrderBy(p => p, StringComparer.Ordinal));
+            failures.AddRange(memory);
             failures.AddRange(packing);
             failures.AddRange(loot);
             failures.AddRange(config.Offered.Where(o => !offered.Contains(o)).Select(o => "never offered: " + o));
@@ -146,15 +149,21 @@ internal static class PackRun
 
     private static string AreaId(string id, string name) => name.Contains(':') ? name : id + ":" + name;
 
-    private static void Play(Content content, AreaDef area, SimRow row, List<SimKit> kits, RuleBot bot, SimBridge settings, int runs, Localizer localize,
-        HashSet<string> offered, HashSet<string> problems)
+    // Plays a row's runs and returns the memory store its last run used.
+    private static IMemory Play(Content content, string pack, AreaDef area, SimRow row, List<SimKit> kits, RuleBot bot, SimBridge settings, int runs,
+        Localizer localize, HashSet<string> offered, HashSet<string> problems)
     {
         var random = new Random(row.Seed);
         string where = row.Area + " " + row.Kit + " " + row.Bot;
         int cleared = 0, knocked = 0, extracted = 0;
+        // Runs share one store only when the row carries memory: rows sample independent nights, and a shared store would
+        // make each run's odds depend on the runs before it.
+        IMemory carried = row.Memory != null && row.Memory.Carry ? row.Memory.Start(pack) : null;
+        IMemory memory = null;
         for (int n = 0; n < runs; n++)
         {
-            var bridge = new KitBridge(kits[n % kits.Count], settings, content, random, problems);
+            memory = carried ?? row.Memory?.Start(pack) ?? new MemoryStore();
+            var bridge = new KitBridge(kits[n % kits.Count], settings, content, random, problems, memory);
             var run = new ExpeditionRun(content, area, bridge, s => random.Next(1, s + 1), localize, "you");
             try
             {
@@ -187,6 +196,7 @@ internal static class PackRun
         }
         Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0,-18} {1,-12} {2,-8} {3,6} {4,7:0.0}% {5,11:0.0}% {6,9:0.0}%",
             row.Area, row.Kit, row.Bot, runs, 100.0 * cleared / runs, 100.0 * knocked / runs, 100.0 * extracted / runs));
+        return memory;
     }
 
     // The built-in "random" bot: any option, but heads home only rarely so runs reach the end.

@@ -13,14 +13,16 @@ namespace ExpeditionFramework.Game
         private readonly TradeCounter counter;
         private readonly GameSounds sounds;
         private readonly string pack;
+        private readonly string areaId;
         private readonly List<GameItem> found = new List<GameItem>();
         private List<RunItem> current = new List<RunItem>();
         private int readFrame = -1;
 
-        public GameBridge(Content content, string pack, TradeCounter counter, GameSounds sounds)
+        public GameBridge(Content content, AreaDef area, TradeCounter counter, GameSounds sounds)
         {
             reader = new ItemReader(content);
-            this.pack = pack;
+            pack = area.Pack;
+            areaId = area.Id;
             this.counter = counter;
             this.sounds = sounds;
         }
@@ -158,7 +160,9 @@ namespace ExpeditionFramework.Game
             return holder != null && holder.parents != null && holder.parents.Any(owner => owner is GameItem parent && set.Contains(parent));
         }
 
-        public int GameValue(string name) => GameValues.Get(name);
+        public int GameValue(string name) => GameValues.Get(name, areaId);
+
+        public IMemory Memory { get; } = new SaveMemory();
 
         public void Wound(string kind)
         {
@@ -188,19 +192,52 @@ namespace ExpeditionFramework.Game
         }
     }
 
-    /// <summary>The player facts packs can read as <c>game.NAME</c>. Anything else is read through a pack's own C# effect or condition.</summary>
+    /// <summary>
+    /// The player facts packs can read as <c>game.NAME</c>, for the area they are read from. Anything else is read through
+    /// a pack's own C# effect or condition.
+    /// </summary>
     internal static class GameValues
     {
-        public static int Get(string name)
+        public static int Get(string name, string areaId)
         {
+            string clearsOf = GameReads.ClearsArea(name, areaId);
+            if (clearsOf != null) return Clears(clearsOf);
             switch (name)
             {
                 case "luck": return HealthData.GetLuck();
                 case "roll_luck": return HealthData.RollLuck() ? 1 : 0;
                 case "wounds": return PlayerStore.HasInstance ? PlayerStore.Instance.healthData.woundState : 0;
                 case "maimed": return StartingPerk.IsMaimed() ? 1 : 0;
+                case "day": return StoreStation.GetDayCounter();
                 default: return 0;
             }
         }
+
+        /// <summary>
+        /// How often the player has cleared an area. Reads the save's afterhour states directly: GetAfterhourState adds an
+        /// empty state to the save for any id it is asked about, so a mistyped game.clears.AREA read on every map refresh
+        /// would fill the save with junk entries.
+        /// </summary>
+        public static int Clears(string areaId)
+        {
+            Dictionary<string, AfterhourLocationState> states = PlayerStore.HasInstance ? PlayerStore.Instance.afterhourState : null;
+            if (states == null || !states.TryGetValue(ExpeditionLocation.LocationId(areaId), out AfterhourLocationState state) || state == null) return 0;
+            return state.GetCounter(ExpeditionLocation.ClearsCounter);
+        }
+    }
+
+    /// <summary>
+    /// Pack memory in the player's save, through the game's mod data under the framework's own mod id, so it stays with
+    /// that save and lasts across nights. Text names carry a "$" so memory.x and memory.$x never share a key. Mod data
+    /// is per save; the mod data folder is shared by every save and would leak memory between them.
+    /// </summary>
+    internal sealed class SaveMemory : IMemory
+    {
+        private static string Key(string pack, string name) => "memory:" + pack + ":" + name;
+
+        public int Get(string pack, string name) => ModHelper.GetModDataInt(ExpeditionRun.FrameworkPack, Key(pack, name));
+        public void Set(string pack, string name, int value) => ModHelper.SetModDataInt(ExpeditionRun.FrameworkPack, Key(pack, name), value);
+        public string GetText(string pack, string name) => ModHelper.GetModData(ExpeditionRun.FrameworkPack, Key(pack, "$" + name), "");
+        public void SetText(string pack, string name, string value) => ModHelper.SetModData(ExpeditionRun.FrameworkPack, Key(pack, "$" + name), value ?? "");
     }
 }

@@ -8,7 +8,7 @@ namespace ExpeditionFramework.Core
 {
     /// <summary>
     /// Compiles expressions like "60 + item.accuracy * 5 - target.defense", "2d6+1", "self.hp <= 5 && run.depth >= 2" or
-    /// "carried(#light) > 0 ? 2 : 0". Booleans are 1 and 0. Paths start with self, target, player, item, with, run, role.NAME,
+    /// "carried(#light) > 0 ? 2 : 0". Booleans are 1 and 0. Paths start with self, target, player, item, with, run, memory, role.NAME,
     /// arg, game or val. A name starting with # reads a tag, as 1 or 0.
     /// </summary>
     public sealed class Expr
@@ -16,23 +16,36 @@ namespace ExpeditionFramework.Core
         private readonly string text;
         private readonly Func<string, Value> named;
         private readonly Func<string, bool> hasMod;
+        private readonly string pack;
+        private readonly Action<string> memoryRead;
         private int at;
         private string error;
 
-        private Expr(string text, Func<string, Value> named, Func<string, bool> hasMod)
+        private Expr(string text, Func<string, Value> named, Func<string, bool> hasMod, string pack, Action<string> memoryRead)
         {
             this.text = text;
             this.named = named;
             this.hasMod = hasMod;
+            this.pack = pack;
+            this.memoryRead = memoryRead;
         }
 
         /// <summary>
-        /// Returns null and sets the error when the text doesn't parse. <paramref name="named"/> resolves val.NAME and
-        /// <paramref name="hasMod"/> answers mod(id).
+        /// Returns null and sets the error when the text doesn't parse. <paramref name="named"/> resolves val.NAME,
+        /// <paramref name="hasMod"/> answers mod(id), and <paramref name="pack"/> owns the memory.NAME it reads. Without a
+        /// pack, memory paths don't compile.
         /// </summary>
-        public static Value Compile(string text, out string error, Func<string, Value> named = null, Func<string, bool> hasMod = null)
+        public static Value Compile(string text, out string error, Func<string, Value> named = null, Func<string, bool> hasMod = null, string pack = null) =>
+            Compile(text, out error, named, hasMod, pack, null);
+
+        /// <summary>
+        /// As the public Compile, also handing <paramref name="memoryRead"/> each memory.NAME path the text reads. A separate
+        /// overload rather than another optional parameter: Expr is public, and a new parameter changes the method's binary
+        /// signature for code compiled against it.
+        /// </summary>
+        internal static Value Compile(string text, out string error, Func<string, Value> named, Func<string, bool> hasMod, string pack, Action<string> memoryRead)
         {
-            var parser = new Expr(text, named, hasMod);
+            var parser = new Expr(text, named, hasMod, pack, memoryRead);
             Value value = parser.Ternary();
             parser.Skip();
             if (parser.error == null && parser.at < text.Length) parser.error = "unexpected '" + text.Substring(parser.at) + "'";
@@ -92,8 +105,16 @@ namespace ExpeditionFramework.Core
             return s => what(s)?.Get(name) ?? 0;
         }
 
-        /// <summary>Reader for a path, or null if the head is unknown. With raw, entity stats leave out what statuses add.</summary>
-        public static Value Reader(string path, Func<string, Value> named = null, bool raw = false)
+        private static IMemory MemoryOf(IScope s) => (s.Run as IMemoryHost)?.Memory;
+
+        // A "$" name is text: as a number, memory.$x would read and overwrite the text value's key.
+        private static bool IsMemoryNumber(string pack, string name) => pack != null && !name.StartsWith("$");
+
+        /// <summary>
+        /// Reader for a path, or null if the head is unknown. With raw, entity stats leave out what statuses add.
+        /// memory.NAME reads <paramref name="pack"/>'s memory and is unknown without a pack.
+        /// </summary>
+        public static Value Reader(string path, Func<string, Value> named = null, bool raw = false, string pack = null)
         {
             if (!Split(path, out string head, out string name)) return null;
             Func<IScope, IEntity> entity = EntityOf(head);
@@ -103,6 +124,9 @@ namespace ExpeditionFramework.Core
             switch (head)
             {
                 case "run": return s => s.Run.Get(name);
+                case "memory":
+                    if (!IsMemoryNumber(pack, name)) return null;
+                    return s => MemoryOf(s)?.Get(pack, name) ?? 0;
                 case "arg": return s => s.Arg(name);
                 case "game": return s => s.Run.Game(name);
                 case "val": return named?.Invoke(name);
@@ -113,8 +137,8 @@ namespace ExpeditionFramework.Core
             }
         }
 
-        /// <summary>Writer for a path, or null if the head is unknown.</summary>
-        public static Action<IScope, int> Writer(string path)
+        /// <summary>Writer for a path, or null if the head is unknown. memory.NAME writes <paramref name="pack"/>'s memory.</summary>
+        public static Action<IScope, int> Writer(string path, string pack = null)
         {
             if (!Split(path, out string head, out string name)) return null;
             Func<IScope, IEntity> entity = EntityOf(head);
@@ -122,18 +146,28 @@ namespace ExpeditionFramework.Core
             Func<IScope, IItem> item = ItemOf(head);
             if (item != null) return (s, v) => item(s)?.Set(name, v);
             if (head == "run") return (s, v) => s.Run.Set(name, v);
+            if (head == "memory")
+            {
+                if (!IsMemoryNumber(pack, name)) return null;
+                return (s, v) => MemoryOf(s)?.Set(pack, name, v);
+            }
             if (head == "role" && Split(name, out string role, out string stat)) return (s, v) => s.Run.Role(role)?.Set(stat, v);
             return null;
         }
 
-        /// <summary>Writer for a text path like run.$name, self.$name or role.boss.$name, or null.</summary>
-        public static Action<IScope, string> TextWriter(string path)
+        /// <summary>Writer for a text path like run.$name, memory.$name, self.$name or role.boss.$name, or null.</summary>
+        public static Action<IScope, string> TextWriter(string path, string pack = null)
         {
             int mark = path.LastIndexOf(".$", StringComparison.Ordinal);
             if (mark <= 0) return null;
             string head = path.Substring(0, mark);
             string name = path.Substring(mark + 2);
             if (head == "run") return (s, v) => s.Run.SetText(name, v);
+            if (head == "memory")
+            {
+                if (pack == null || name.Length == 0) return null;
+                return (s, v) => MemoryOf(s)?.SetText(pack, name, v);
+            }
             Func<IScope, IEntity> entity = head.StartsWith("role.") ? (s => s.Run.Role(head.Substring(5))) : EntityOf(head);
             if (entity != null) return (s, v) => entity(s)?.SetText(name, v);
             Func<IScope, IItem> item = ItemOf(head);
@@ -150,9 +184,9 @@ namespace ExpeditionFramework.Core
 
         /// <summary>
         /// Reads text: HEAD.name, HEAD.id, HEAD.$var. With no field the head reads as its own id, without the pack, which is
-        /// how "{self}_look" names a text key. Returns null if this isn't a text path.
+        /// how "{self}_look" names a text key. memory.$var reads <paramref name="pack"/>'s memory. Returns null if this isn't a text path.
         /// </summary>
-        public static Func<IScope, string> TextReader(string path, bool fieldRequired)
+        public static Func<IScope, string> TextReader(string path, bool fieldRequired, string pack = null)
         {
             string head;
             string field;
@@ -173,6 +207,7 @@ namespace ExpeditionFramework.Core
 
             if (head == "area") return field == null || field == "id" ? s => Local(s.Run.AreaId) : (Func<IScope, string>)null;
             if (head == "run") return variable != null ? s => s.Run.GetText(variable) : (Func<IScope, string>)null;
+            if (head == "memory") return variable != null && pack != null ? s => MemoryOf(s)?.GetText(pack, variable) ?? "" : (Func<IScope, string>)null;
 
             Func<IScope, IEntity> entity = head.StartsWith("role.") ? (s => s.Run.Role(head.Substring(5))) : EntityOf(head);
             if (entity != null)
@@ -311,12 +346,13 @@ namespace ExpeditionFramework.Core
             {
                 return s => Sum(s, count, sides);
             }
-            Value reader = Reader(word, named);
+            Value reader = Reader(word, named, pack: pack);
             if (reader == null)
             {
-                Fail("unknown path '" + word + "' (paths start with self., target., player., item., with., run., role., arg., game. or val.)");
+                Fail("unknown path '" + word + "' (paths start with self., target., player., item., with., run., memory., role., arg., game. or val.)");
                 return s => 0;
             }
+            if (memoryRead != null && word.StartsWith("memory.", StringComparison.Ordinal)) memoryRead(word);
             return reader;
         }
 

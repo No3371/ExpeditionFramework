@@ -10,9 +10,50 @@ internal sealed class SimRow
 {
     public string Area, Bot; public int Runs, Seed;
     public readonly List<string> Kits = new List<string>();     // run n uses Kits[n % Kits.Count]
+    public SimMemory Memory;                                    // null: no "memory", every run starts with empty memory
     public string Kit => string.Join("+", Kits);
 }
 internal sealed class SimPacking { public string At, Area; public List<SimItem> Bag; public List<string> Missing; }  // Bag null = no backpack
+
+// runs[n].memory: what the pack's memory.* holds before the row's runs, whether one run's writes reach the next, and what it
+// must hold after the last run. Names are as the pack writes them after "memory." ($ for text).
+internal sealed class SimMemory
+{
+    public readonly Dictionary<string, int> Numbers = new Dictionary<string, int>();
+    public readonly Dictionary<string, string> Texts = new Dictionary<string, string>();   // keyed without the $, as the store keeps them
+    public bool Carry;                                                                     // false: every run starts from the start values
+    public readonly List<SimMemoryCheck> Expect = new List<SimMemoryCheck>();
+
+    public MemoryStore Start(string pack)
+    {
+        var store = new MemoryStore();
+        foreach (KeyValuePair<string, int> v in Numbers) store.Set(pack, v.Key, v.Value);
+        foreach (KeyValuePair<string, string> v in Texts) store.SetText(pack, v.Key, v.Value);
+        return store;
+    }
+
+    // One failure per expect entry the store misses.
+    public List<string> Check(string pack, IMemory memory, string at)
+    {
+        var failures = new List<string>();
+        foreach (SimMemoryCheck c in Expect)
+        {
+            string where = at + ": memory." + c.Name;
+            if (c.Name.StartsWith("$"))
+            {
+                string got = memory.GetText(pack, c.Name.Substring(1));
+                if (got != c.Text) failures.Add(where + " should be \"" + c.Text + "\", got \"" + got + "\"");
+                continue;
+            }
+            int value = memory.Get(pack, c.Name);
+            if (c.Min != null && c.Min == c.Max) { if (value != c.Min) failures.Add(where + " should be " + c.Min + ", got " + value); }
+            else if (c.Min is int min && value < min) failures.Add(where + " should be at least " + min + ", got " + value);
+            else if (c.Max is int max && value > max) failures.Add(where + " should be at most " + max + ", got " + value);
+        }
+        return failures;
+    }
+}
+internal sealed class SimMemoryCheck { public string Name, Text; public int? Min, Max; }   // Name keeps its $; Text only for $ names
 
 // expect.loot[n]: roll each table Rolls times in one run of Area, with Mods also counted as installed.
 internal sealed class SimLoot
@@ -74,7 +115,7 @@ internal sealed class SimConfig
         {
             string at = "runs[" + n + "]";
             Dictionary<string, object> row = Obj(rows[n], at);
-            Only(row, at, "area", "kit", "bot", "runs", "seed");
+            Only(row, at, "area", "kit", "bot", "runs", "seed", "memory");
             var r = new SimRow
             {
                 Area = Str(Need(row, "area", at), at + ".area"),
@@ -91,6 +132,7 @@ internal sealed class SimConfig
             if (r.Bot != RandomBot && !config.Bots.ContainsKey(r.Bot))
                 throw new FormatException(at + ".bot: unknown bot " + r.Bot + " (known: " + string.Join(", ", new[] { RandomBot }.Concat(config.Bots.Keys)) + ")");
             if (r.Runs <= 0) throw new FormatException(at + ".runs must be above 0");
+            if (row.TryGetValue("memory", out object m)) r.Memory = MemoryOf(m, at + ".memory");
             config.Rows.Add(r);
         }
         if (top.TryGetValue("expect", out object e))
@@ -170,6 +212,54 @@ internal sealed class SimConfig
             else throw new FormatException("bridge.lose_carried must be roll or a list of names");
         }
         return bridge;
+    }
+
+    // runs[n].memory: { start?, carry?, expect? }. start and expect are keyed by name (visits, $rival); expect takes a whole
+    // number (exactly), { min?, max? } or, for a $ name, text.
+    private static SimMemory MemoryOf(object value, string at)
+    {
+        Dictionary<string, object> obj = Obj(value, at);
+        Only(obj, at, "start", "carry", "expect");
+        var memory = new SimMemory();
+        if (obj.TryGetValue("carry", out object c)) memory.Carry = c is bool b ? b : throw new FormatException(at + ".carry must be true or false");
+        if (obj.TryGetValue("start", out object s))
+        {
+            foreach (KeyValuePair<string, object> v in Obj(s, at + ".start"))
+            {
+                string vat = at + ".start." + v.Key;
+                if (IsTextName(v.Key, vat)) memory.Texts[v.Key.Substring(1)] = Str(v.Value, vat);
+                else memory.Numbers[v.Key] = Int(v.Value, vat);
+            }
+        }
+        if (obj.TryGetValue("expect", out object e))
+        {
+            foreach (KeyValuePair<string, object> v in Obj(e, at + ".expect"))
+            {
+                string vat = at + ".expect." + v.Key;
+                var check = new SimMemoryCheck { Name = v.Key };
+                if (IsTextName(v.Key, vat)) check.Text = Str(v.Value, vat);
+                else if (v.Value is Dictionary<string, object> range)
+                {
+                    Only(range, vat, "min", "max");
+                    if (range.Count == 0) throw new FormatException(vat + " needs min or max");
+                    if (range.TryGetValue("min", out object lo)) check.Min = Int(lo, vat + ".min");
+                    if (range.TryGetValue("max", out object hi)) check.Max = Int(hi, vat + ".max");
+                    if (check.Min > check.Max) throw new FormatException(vat + ".min is above max");
+                }
+                else if (v.Value is double) check.Min = check.Max = Int(v.Value, vat);
+                else throw new FormatException(vat + " must be a whole number or {min, max}");
+                memory.Expect.Add(check);
+            }
+        }
+        return memory;
+    }
+
+    // Whether a memory name is text ($NAME). "memory.visits" would seed a name the pack never reads, so it is refused.
+    private static bool IsTextName(string name, string at)
+    {
+        if (name.StartsWith("memory.")) throw new FormatException(at + ": leave out memory. (write visits or $rival)");
+        if (name.Length == 0 || name == "$") throw new FormatException(at + ": empty memory name");
+        return name.StartsWith("$");
     }
 
     // expect.loot[n]: { area, tables, rolls, seed?, mods?, never_prefix?, must_roll? } with at least one of never_prefix and must_roll.

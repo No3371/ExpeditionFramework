@@ -41,7 +41,9 @@
   "runs": [
     { "area": "flooded_cellar", "kit": "knife", "bot": "random", "runs": 2500, "seed": 42 },
     { "area": "flooded_cellar", "kit": "everything", "bot": "random", "runs": 2500, "seed": 43 },
-    { "area": "flooded_cellar", "kit": "everything", "bot": "cautious", "runs": 2500, "seed": 44 }
+    { "area": "flooded_cellar", "kit": "everything", "bot": "cautious", "runs": 2500, "seed": 44 },
+    { "area": "flooded_cellar", "kit": "everything", "bot": "random", "runs": 500, "seed": 45,
+      "memory": { "start": { "foreman_beaten": 1 }, "carry": true, "expect": { "foreman_beaten": { "min": 2 } } } }
   ],
   "expect": {
     "offered": [
