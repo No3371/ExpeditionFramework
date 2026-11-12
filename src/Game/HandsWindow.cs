@@ -18,12 +18,18 @@ namespace ExpeditionFramework.Game
         private static bool menuOpen;
         private static bool choosing;
 
+        // PixelWindow is a plain C# object around a Unity component. Loading a game destroys the component but not this
+        // static, so `window != null` stays true and every Show/Hide throws. The Unity null check on the handler is the
+        // test that the window still exists.
+        private static bool Alive => window != null && window.handler != null;
+
         public static void Start()
         {
             ModHook.OnAfterhourArriveEarly += Arriving;
             ModHook.OnReturningStoreLate += PutBack;
             ModHook.OnGoingSleepEarly += PutBack;
             ModHook.OnShutterOpenedEarly += PutBack;
+            ModHook.OnGameLoadedEarly += Forget;
         }
 
         public static void Stop()
@@ -32,7 +38,19 @@ namespace ExpeditionFramework.Game
             ModHook.OnReturningStoreLate -= PutBack;
             ModHook.OnGoingSleepEarly -= PutBack;
             ModHook.OnShutterOpenedEarly -= PutBack;
+            ModHook.OnGameLoadedEarly -= Forget;
             PutBack();
+        }
+
+        // A loaded game has none of this window's objects; the next bag menu builds a fresh one. Items left in the old
+        // slots went with the old scene, as the game doesn't save this window.
+        private static void Forget()
+        {
+            window = null;
+            left = null;
+            right = null;
+            menuOpen = false;
+            choosing = false;
         }
 
         /// <summary>The game's bag choice opened.</summary>
@@ -56,10 +74,19 @@ namespace ExpeditionFramework.Game
         /// <summary>Some response window closed. If it was the bag choice and no bag was picked, the trip is off.</summary>
         public static void ResponseClosed()
         {
-            if (!menuOpen) return;
-            menuOpen = false;
-            if (choosing) Hide();
-            else PutBack();
+            // This runs inside the game's bag choice, just before it opens the map: an exception here would cancel the
+            // trip, so nothing may escape.
+            try
+            {
+                if (!menuOpen) return;
+                menuOpen = false;
+                if (choosing) Hide();
+                else PutBack();
+            }
+            catch (Exception ex)
+            {
+                ModEntry.Log.Warning("Could not close the hands window: " + ex.Message);
+            }
         }
 
         // This has to be the early hook: on the way out the game closes the map through its "back in the store" path,
@@ -115,7 +142,7 @@ namespace ExpeditionFramework.Game
             try
             {
                 if (EmporiumEntry.Instance == null || !PackRegistry.HasAreas) return;
-                if (window == null) Build();
+                if (!Alive) Build();
                 window.Show();
                 Place();
                 window.Validate();
@@ -129,7 +156,7 @@ namespace ExpeditionFramework.Game
 
         private static void Hide()
         {
-            if (window != null) window.Hide();
+            if (Alive) window.Hide();
         }
 
         private static void PutBack()
@@ -141,12 +168,12 @@ namespace ExpeditionFramework.Game
                 {
                     foreach (GameItem item in Slots().Select(slot => slot.childItem).Where(item => item != null).ToList()) entry.TryAddToPlayerInv(item);
                 }
+                Hide();
             }
             catch (Exception ex)
             {
                 ModEntry.Log.Warning("Could not return the items in hand: " + ex.Message);
             }
-            Hide();
         }
 
         private static void Build()
