@@ -172,13 +172,22 @@ namespace ExpeditionFramework.Game
 
         // As the game settles its own overnight reputation changes (VendingMachineHelper.SettleMislabelRep): ModReputation
         // without the store's popup, which isn't on screen at night, and its own gained/lost text with the amount.
-        public string Reputation(string faction, int amount)
+        public string Reputation(string faction, double amount)
         {
             string id = GameReads.FactionId(faction);
-            if (amount == 0 || !PlayerStore.HasInstance || PlayerStore.Instance.storeReputations == null || StoreReputation.GetStoreReputation(id) == null) return null;
-            StoreReputation.ModReputation(id, amount, notify: false);
+            StoreReputation rep = amount == 0 || !PlayerStore.HasInstance || PlayerStore.Instance.storeReputations == null ? null : StoreReputation.GetStoreReputation(id);
+            if (rep == null) return null;
+            if (amount == Math.Floor(amount) && Math.Abs(amount) <= int.MaxValue) StoreReputation.ModReputation(id, (int)amount, notify: false);
+            else
+            {
+                // The static ModReputation takes whole numbers only. This is its body for a decimal: lower level gains add
+                // wild favor at 40 per point (rounded), then the faction's own ModReputation applies perks and difficulty.
+                if (id == StoreReputation.FACTION_LOWER_LEVEL && amount > 0) PlayerStore.Instance.wildFavor += (int)Math.Round(amount * 40, MidpointRounding.AwayFromZero);
+                rep.ModReputation(amount);
+                if (AchievementTracker.Instance != null) AchievementTracker.Instance.CheckPerfectMediator();
+            }
             string name = StoreReputation.GetFactionNameByID(id);
-            return LocHelper.GetLocalizedUI(amount > 0 ? "ui_rep_gained" : "ui_rep_lost", name) + " (" + (amount > 0 ? "+" : "") + amount + ")";
+            return LocHelper.GetLocalizedUI(amount > 0 ? "ui_rep_gained" : "ui_rep_lost", name) + " (" + GameReads.RepAmount(amount) + ")";
         }
 
         public void NightLog(string text, string color) => PlayerStore.Instance.AddNightLog(text, color);
@@ -213,8 +222,8 @@ namespace ExpeditionFramework.Game
         {
             string clearsOf = GameReads.ClearsArea(name, areaId);
             if (clearsOf != null) return Clears(clearsOf);
-            string faction = GameReads.RepFaction(name);
-            if (faction != null) return Reputation(faction);
+            string faction = GameReads.RepFaction(name, out bool exact);
+            if (faction != null) return Reputation(faction, exact);
             switch (name)
             {
                 case "luck": return HealthData.GetLuck();
@@ -226,11 +235,15 @@ namespace ExpeditionFramework.Game
             }
         }
 
-        /// <summary>The player's reputation with a faction, whole as the game shows it; 0 without a save or that faction.</summary>
-        public static int Reputation(string faction)
+        /// <summary>
+        /// The player's reputation with a faction: whole as the game shows it, or in hundredths when exact. 0 without a save
+        /// or that faction.
+        /// </summary>
+        public static int Reputation(string faction, bool exact)
         {
             if (!PlayerStore.HasInstance || PlayerStore.Instance.storeReputations == null || !GameReads.IsFaction(faction)) return 0;
-            return StoreReputation.GetStoreReputation(GameReads.FactionId(faction))?.GetReputation() ?? 0;
+            StoreReputation rep = StoreReputation.GetStoreReputation(GameReads.FactionId(faction));
+            return rep == null ? 0 : GameReads.RepRead(rep.GetReputationExact(), exact);
         }
 
         /// <summary>

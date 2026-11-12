@@ -422,24 +422,31 @@ namespace ExpeditionFramework.Core
             r.Effects["schedule"] = CompileSchedule;
             r.Effects["unschedule"] = c => { Value at = c.Value("value", 0); return s => s.Run.Flow.Unschedule(at(s)); };
             r.Effects["wound"] = c => { string kind = c.Require("value"); return s => s.Run.Wound(kind); };
-            // Changes reputation with a faction and logs it the way the game logs its own overnight reputation changes: its
-            // own text, green for a gain, red for a loss. night_log replaces the text (arg.rep is the change), quiet logs nothing.
+            // Changes reputation with a faction by a decimal amount and logs it the way the game logs its own overnight
+            // reputation changes: its own text, green for a gain, red for a loss. The amount is kept in hundredths: value is a
+            // whole-number expression or a literal with up to two decimals, value_x100 an expression in hundredths. night_log
+            // replaces the text (arg.rep is the whole part, arg.rep_x100 the hundredths, run.$rep the amount as +0.5), quiet logs nothing.
             r.Effects["reputation"] = c =>
             {
                 string faction = c.Require("faction");
                 if (faction != null && !GameReads.IsFaction(faction)) c.Error(GameReads.UnknownFaction(faction));
-                Value amount = c.Value("value", 0);
+                Value hundredths = ReputationAmount(c);
                 ILine logged = c.Line("night_log");
                 string color = c.Text("color");
                 bool quiet = c.Flag("quiet", false);
                 return s =>
                 {
-                    int value = amount(s);
-                    if (value == 0) return;
-                    string line = s.Run.Reputation(faction, value);
+                    int x100 = hundredths(s);
+                    if (x100 == 0) return;
+                    double amount = x100 / 100.0;
+                    string line = s.Run.Reputation(faction, amount);
                     if (line == null || quiet) return;
-                    if (logged != null) line = logged.Render(s.WithArg("rep", value));
-                    s.Run.NightLog(line, color ?? (value > 0 ? "5c6f46" : "9c3738"));
+                    if (logged != null)
+                    {
+                        s.Run.SetText("rep", GameReads.RepAmount(amount));
+                        line = logged.Render(s.WithArg("rep", x100 / 100).WithArg("rep_x100", x100));
+                    }
+                    s.Run.NightLog(line, color ?? (amount > 0 ? "5c6f46" : "9c3738"));
                 };
             };
             r.Effects["night_log"] = c =>
@@ -817,6 +824,32 @@ namespace ExpeditionFramework.Core
         }
 
         /// <summary>{"value": table}, {"from": [tables], "index": n} for tiers, or {"drops_of": who} for what someone carries.</summary>
+        // The reputation effect's amount in hundredths: exactly one of value (a whole-number expression, or a number with
+        // at most two decimals) and value_x100 (an expression in hundredths).
+        private static Value ReputationAmount(ISpec c)
+        {
+            bool whole = c.Has("value"), x100 = c.Has("value_x100");
+            if (whole == x100)
+            {
+                c.Error(whole ? "give value or value_x100, not both" : "needs \"value\" or \"value_x100\"");
+                return s => 0;
+            }
+            if (x100) return c.Value("value_x100", 0);
+            if (((PackLoader.Spec)c).Args["value"] is double literal)
+            {
+                double scaled = Math.Round(literal * 100);
+                if (Math.Abs(literal * 100 - scaled) > 1e-6 || Math.Abs(scaled) > int.MaxValue)
+                {
+                    c.Error("value " + literal.ToString(System.Globalization.CultureInfo.InvariantCulture) + " has more than two decimals; use value_x100 for a computed amount");
+                    return s => 0;
+                }
+                int fixedAmount = (int)scaled;
+                return s => fixedAmount;
+            }
+            Value amount = c.Value("value", 0);
+            return s => amount(s) * 100;
+        }
+
         private static Effect CompileGiveLoot(ISpec c)
         {
             if (c.Has("drops_of"))

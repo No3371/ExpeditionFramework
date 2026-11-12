@@ -611,17 +611,22 @@ internal static class Program
         Check(area.HiddenWhen(new MapContext(area.Id, (p, k, a) => k, name => 0, other).Root), "another pack's memory doesn't unlock this area");
     }
 
-    // game.clears reads the reading area's clears and game.clears.AREA another area of its pack, so hidden_when can
-    // unlock an area on a clear OR on memory.
-    // game.rep.FACTION reads reputation and the reputation effect changes it through the bridge, logging the game's line,
-    // a pack's own, or nothing; a faction the player lacks changes and logs nothing. Unknown factions fail the load.
+    // game.rep.FACTION reads reputation whole and game.rep_exact.FACTION in hundredths; the reputation effect changes it
+    // through the bridge by a decimal amount (value: whole expression or literal with two decimals; value_x100: hundredths),
+    // logging the game's line, a pack's own, or nothing. Zero or a faction the player lacks changes and logs nothing.
     private static void TestReputation()
     {
-        Check(GameReads.RepFaction("rep.security") == "security" && GameReads.RepFaction("day") == null && GameReads.RepFaction(null) == null,
-            "rep.FACTION names a faction read");
+        Check(GameReads.RepFaction("rep.security", out bool whole) == "security" && !whole
+            && GameReads.RepFaction("rep_exact.security", out bool exact) == "security" && exact
+            && GameReads.RepFaction("day", out _) == null && GameReads.RepFaction(null, out _) == null,
+            "rep.FACTION and rep_exact.FACTION name a faction read");
         Check(GameReads.FactionId("black_market") == "FACTION_BLACK_MARKET", "faction names map to the game's ids");
-        Check(GameReads.BadRead("rep.security") == null && GameReads.BadRead("rep.church") != null && GameReads.BadRead("luck") == null,
-            "only rep reads of unknown factions are bad");
+        Check(GameReads.BadRead("rep.security") == null && GameReads.BadRead("rep.church") != null && GameReads.BadRead("rep_exact.church") != null
+            && GameReads.BadRead("luck") == null, "only rep reads of unknown factions are bad");
+        Check(GameReads.RepRead(-1.5, false) == -1 && GameReads.RepRead(-1.5, true) == -150 && GameReads.RepRead(0.7499999999, true) == 75,
+            "rep reads cut toward zero, rep_exact rounds hundredths");
+        Check(GameReads.RepAmount(0.5) == "+0.5" && GameReads.RepAmount(-3) == "-3" && GameReads.RepAmount(1.25) == "+1.25",
+            "amounts show signed, with decimals only when there are some");
 
         var content = new Content();
         var loader = new PackLoader(content, new Registry());
@@ -630,11 +635,16 @@ internal static class Program
             { ""set"": { ""var"": ""run.before"", ""value"": ""game.rep.security"" } },
             { ""reputation"": { ""faction"": ""security"", ""value"": 5 } },
             { ""set"": { ""var"": ""run.after"", ""value"": ""game.rep.security"" } },
-            { ""reputation"": { ""faction"": ""revolution"", ""value"": ""0 - run.after"", ""night_log"": { ""text"": ""rev_line"", ""args"": [""arg.rep""] } } },
-            { ""reputation"": { ""faction"": ""upper_level"", ""value"": 2, ""quiet"": true } },
-            { ""reputation"": { ""faction"": ""black_market"", ""value"": 0 } },
-            { ""reputation"": { ""faction"": ""cartel"", ""value"": 3 } },
-            { ""if"": { ""when"": ""game.rep.upper_level >= 2"", ""then"": [ { ""set"": { ""var"": ""run.upper"", ""value"": 1 } } ] } }
+            { ""reputation"": { ""faction"": ""revolution"", ""value"": ""0 - run.after"", ""night_log"": { ""text"": ""rev"", ""args"": [""arg.rep"", ""arg.rep_x100"", ""run.$rep""] } } },
+            { ""reputation"": { ""faction"": ""upper_level"", ""value"": 0.5, ""quiet"": true } },
+            { ""reputation"": { ""faction"": ""upper_level"", ""value_x100"": ""5 * 5"", ""quiet"": true } },
+            { ""set"": { ""var"": ""run.upper"", ""value"": ""game.rep.upper_level"" } },
+            { ""set"": { ""var"": ""run.upper_x100"", ""value"": ""game.rep_exact.upper_level"" } },
+            { ""reputation"": { ""faction"": ""black_market"", ""value"": 0.25, ""night_log"": { ""text"": ""bm"", ""args"": [""arg.rep"", ""arg.rep_x100"", ""run.$rep""] } } },
+            { ""reputation"": { ""faction"": ""lower_level"", ""value"": -0.5 } },
+            { ""reputation"": { ""faction"": ""security"", ""value"": 0 } },
+            { ""reputation"": { ""faction"": ""security"", ""value_x100"": ""0"" } },
+            { ""reputation"": { ""faction"": ""cartel"", ""value"": 3 } }
           ] } },
           ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] } }
         }");
@@ -642,21 +652,29 @@ internal static class Program
         Check(content.Problems.Count == 0, "reputation pack: " + string.Join("; ", content.Problems));
         if (content.Problems.Count > 0) return;
         var bridge = new FakeBridge(new Random(1));
-        bridge.Game["rep.security"] = 10;
+        bridge.Rep["security"] = 10;
         var run = new ExpeditionRun(content, content.Areas["t:a"], bridge, n => 1, (p, k, a) => k + ":" + string.Join(",", a), "you");
         run.Begin();
         Check(run.Get("before") == 10 && run.Get("after") == 15, "a reputation change shows in later reads: " + run.Get("before") + " -> " + run.Get("after"));
-        Check(bridge.GameValue("rep.revolution") == -15 && bridge.GameValue("rep.upper_level") == 2 && run.Get("upper") == 1,
-            "value is an expression, and quiet still changes reputation");
-        Check(!bridge.Game.ContainsKey("rep.black_market") && !bridge.Game.ContainsKey("rep.cartel"), "zero and a missing faction change nothing");
+        Check(bridge.Rep["revolution"] == -15 && run.Get("upper") == 0 && run.Get("upper_x100") == 75,
+            "value is an expression, decimal and hundredths amounts add up, rep reads whole and rep_exact hundredths: "
+            + run.Get("upper") + " / " + run.Get("upper_x100"));
+        Check(bridge.Rep["black_market"] == 0.25 && bridge.Rep["lower_level"] == -0.5, "decimal literals reach the bridge exactly");
+        Check(string.Join(",", bridge.Calls) == "security 5,revolution -15,upper_level 0.5,upper_level 0.25,black_market 0.25,lower_level -0.5",
+            "zero and a missing faction change nothing: " + string.Join(",", bridge.Calls));
         string logs = string.Join(" | ", bridge.NightLogs.Select(l => l.Text + "@" + l.Color));
-        Check(logs == "rep security 5@5c6f46 | rev_line:-15@9c3738", "the game's line green for a gain, the pack's own red for a loss, quiet and no-ops log nothing: " + logs);
+        Check(logs == "rep security +5@5c6f46 | rev:-15,-1500,-15@9c3738 | bm:0,25,+0.25@5c6f46 | rep lower_level -0.5@9c3738",
+            "the game's line or the pack's own (whole part, hundredths, text), green for a gain and red for a loss; quiet logs nothing: " + logs);
 
         foreach ((string effect, string expected) in new[]
         {
             (@"{ ""reputation"": { ""faction"": ""church"", ""value"": 1 } }", "unknown faction 'church'"),
-            (@"{ ""reputation"": { ""value"": 1 } }", "needs \""),
+            (@"{ ""reputation"": { ""value"": 1 } }", "needs \"faction\""),
+            (@"{ ""reputation"": { ""faction"": ""security"" } }", "needs \"value\" or \"value_x100\""),
+            (@"{ ""reputation"": { ""faction"": ""security"", ""value"": 1, ""value_x100"": 100 } }", "not both"),
+            (@"{ ""reputation"": { ""faction"": ""security"", ""value"": 0.125 } }", "more than two decimals"),
             (@"{ ""set"": { ""var"": ""run.x"", ""value"": ""game.rep.securty"" } }", "unknown faction 'securty'"),
+            (@"{ ""set"": { ""var"": ""run.x"", ""value"": ""game.rep_exact.securty"" } }", "unknown faction 'securty'"),
         })
         {
             var bad = new Content();
@@ -668,10 +686,12 @@ internal static class Program
             badLoader.Finish();
             Check(bad.Problems.Any(p => p.Contains(expected)), "bad reputation use is reported (" + expected + "): " + string.Join("; ", bad.Problems));
         }
-        List<string> unread = WarningsIn(@"{""rooms"":{""r"":{""text"":""k"",""enter"":[{""reputation"":{""faction"":""security"",""amount"":1}}]}}}");
+        List<string> unread = WarningsIn(@"{""rooms"":{""r"":{""text"":""k"",""enter"":[{""reputation"":{""faction"":""security"",""value"":1,""amount"":1}}]}}}");
         Check(unread.Count == 1 && unread[0].Contains("reputation.amount"), "a misspelled reputation argument is warned about: " + string.Join("; ", unread));
     }
 
+    // game.clears reads the reading area's clears and game.clears.AREA another area of its pack, so hidden_when can
+    // unlock an area on a clear OR on memory.
     private static void TestGameReads()
     {
         Check(GameReads.ClearsArea("clears", "a:cellar") == "a:cellar", "game.clears counts the reading area");
@@ -1229,16 +1249,22 @@ internal static class Program
         public string TakeBack() => null;
         public void LoseFound() { }
         public List<string> LoseCarried(Func<int, int> chanceForSize) => new List<string>();
-        public readonly Dictionary<string, int> Game = new Dictionary<string, int>();
-        public int GameValue(string name) => Game.TryGetValue(name, out int value) ? value : 0;
+        public readonly Dictionary<string, double> Rep = new Dictionary<string, double>();
+        public readonly List<string> Calls = new List<string>();
+        public int GameValue(string name)
+        {
+            string faction = GameReads.RepFaction(name, out bool exact);
+            return faction != null && Rep.TryGetValue(faction, out double rep) ? GameReads.RepRead(rep, exact) : 0;
+        }
         public IMemory Memory { get; }
         public void Wound(string kind) { }
         // Every faction but the cartel, as on a start other than the drug dealer's.
-        public string Reputation(string faction, int amount)
+        public string Reputation(string faction, double amount)
         {
             if (faction == "cartel") return null;
-            Game["rep." + faction] = GameValue("rep." + faction) + amount;
-            return "rep " + faction + " " + amount;
+            Calls.Add(faction + " " + amount.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Rep[faction] = (Rep.TryGetValue(faction, out double rep) ? rep : 0) + amount;
+            return "rep " + faction + " " + GameReads.RepAmount(amount);
         }
         public readonly List<(string Text, string Color)> NightLogs = new List<(string, string)>();
         public void NightLog(string text, string color) => NightLogs.Add((text, color));

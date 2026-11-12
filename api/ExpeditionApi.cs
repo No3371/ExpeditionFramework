@@ -294,11 +294,11 @@ namespace ExpeditionFramework.Api
 
         /// <summary>
         /// Changes the player's reputation with a faction (lower_level, upper_level, security, black_market, revolution or
-        /// cartel) the way the game's own events do, so perks and difficulty scale it. Returns the game's own night log line
-        /// for the change, or null when nothing changed: the player has no such faction, or the run is on the map.
-        /// Logs nothing itself.
+        /// cartel) by a decimal amount, the way the game's own events do, so perks and difficulty scale it. A trade moves it
+        /// by its value / 400, so 0.5 is a 200-credit sale. Returns the game's own night log line for the change, or null when
+        /// nothing changed: the amount is 0, the player has no such faction, or the run is on the map. Logs nothing itself.
         /// </summary>
-        string Reputation(string faction, int amount);
+        string Reputation(string faction, double amount);
         void NightLog(string text, string color);
         void PlaySound(string id);
 

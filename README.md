@@ -216,9 +216,11 @@ game's day counter, 0 with no save loaded), `game.clears` (how many times the pl
 `game.clears.AREA` (the same for another area of this pack, such as `game.clears.flooded_cellar`). A clear counts when the
 player leaves an area after a run that ended `cleared` or with `run.cleared` above 0, so during a run these count earlier
 nights, not tonight. `game.rep.FACTION` is the player's reputation with a faction, the whole number the game's
-reputation screen goes by, from -200 to 200: FACTION is `lower_level`, `upper_level`, `security`, `black_market`,
-`revolution` or `cartel` (the cartel exists only on the drug dealer start; without it, it reads 0). Any other faction is a
-load problem. Unlike clears, reputation changed earlier tonight already shows. They all work on the map too.
+reputation screen goes by (cut toward zero), from -200 to 200: FACTION is `lower_level`, `upper_level`, `security`,
+`black_market`, `revolution` or `cartel` (the cartel exists only on the drug dealer start; without it, it reads 0).
+The game keeps reputation as a decimal; `game.rep_exact.FACTION` reads it in hundredths, rounded, so 12.5 reads 1250.
+Any other faction is a load problem. Unlike clears, reputation changed earlier tonight already shows. They all work on
+the map too.
 
 **Effects** are lists, or objects with one effect name:
 
@@ -242,21 +244,27 @@ fills the gun with one item. The standard kits give every `#ammo` 4 rounds.
 `{"lose_items": {"per_cell": 10, "max": 90}}` gives each 10% per grid cell it takes up, attachments included, up to 90%.
 
 `reputation` changes the player's reputation with a faction (one of the `game.rep.FACTION` names; anything else is a
-load problem) by `value`, an expression:
+load problem) by a decimal amount, given as exactly one of `value`, a whole-number expression or a number with at most
+two decimals, and `value_x100`, an expression in hundredths:
 
 ```json
 { "reputation": { "faction": "security", "value": -10 } }
-{ "reputation": { "faction": "black_market", "value": "run.kills", "night_log": { "text": "my_fence_heard", "args": ["arg.rep"] } } }
+{ "reputation": { "faction": "upper_level", "value": 0.5 } }
+{ "reputation": { "faction": "black_market", "value_x100": "25 * run.deals", "night_log": { "text": "my_fence_heard", "args": ["run.$rep"] } } }
 ```
+
+The game's own events move reputation by whole points: 10 is a big swing, 2 or 3 a small one. Trades move it by the
+item's value / 400, so a 200-credit sale is +0.5; the decimal forms work on that scale.
 
 It goes through the game as its own events do, so the change happens at once and lasts, and the game scales it as it
 scales its own: perks (Blabbermouth, Sycophant, the Upper Level petition), losses with the black market doubled, the
-difficulty's gain and loss rates. Reputation stays within -200 to 200, and a lower level gain also adds wild favor. The
-amount is whole, as for the game's own events: 10 is a big swing, 2 or 3 a small one. It logs the change to the night
-log as the game logs its own overnight changes: the game's own reputation gained or lost text for the faction, then the
-amount, such as `(-10)`, green for a gain and red for a loss. It doesn't show the store's reputation popup. `night_log` replaces that line with the pack's own (`arg.rep` is the
-amount), `color` its color, and `quiet: true` logs nothing. A `value` of 0, or a faction the player doesn't have, changes
-and logs nothing.
+difficulty's gain and loss rates. Reputation stays within -200 to 200, and a lower level gain also adds wild favor, 40
+per point as in the game (rounded for a decimal gain, so +0.5 adds 20). It logs the change to the night log as the game
+logs its own overnight changes: the game's own reputation gained or lost text for the faction, then the amount, such as
+`(-10)` or `(+0.5)`, green for a gain and red for a loss. It doesn't show the store's reputation popup. `night_log`
+replaces that line with the pack's own, which can show the amount as `run.$rep` (text such as `+0.5` or `-10`),
+`arg.rep` (its whole part) or `arg.rep_x100` (hundredths). `color` sets its color, and `quiet: true` logs nothing. An
+amount of 0, or a faction the player doesn't have, changes and logs nothing.
 
 **Conditions** are expressions, lists, or: `all`, `any`, `not`, `chance`, `has_tag`, `has_status`, `carrying`, `scene`,
 `intent_interruptible`, `fits`, `credits_at_least`. `not` and `carrying` take their condition or item filter directly,
@@ -358,8 +366,8 @@ public void RegisterExpeditions(IExpeditionRegistrar registrar)
 
 An `IScope` gives `Run`, `Self`, `Target`, `Item` and `Paired`. An `IRun` has variables, dice, log and damage directly.
 `Set` on a name the engine keeps does nothing: `Get` keeps answering from the engine. `run.Game("rep.security")` reads
-what `game.rep.security` reads, and `run.Reputation(faction, amount)` changes it as the `reputation` effect does but logs
-nothing: it returns the game's night log line, or null when nothing changed. An `IRun` also has:
+what `game.rep.security` reads, and `run.Reputation(faction, amount)` changes it by a `double` as the `reputation` effect
+does but logs nothing: it returns the game's night log line, or null when nothing changed. An `IRun` also has:
 
 | Part | What it does |
 |---|---|
@@ -608,9 +616,11 @@ that, for packs whose balance depends on it:
 
 `game` maps a name to a whole number, or to `coin`: 0 or 1 drawn from the run's random each time it is read. Names are
 written as after `game.`, such as `"day": 30`, `"clears.ne_sump": 2` or `"rep.security": -40`. Unlisted names read 0.
-The `reputation` effect changes the run's own copy, clamped to -200 to 200, so later `game.rep` reads in that run see it
-(every faction exists, the cartel too); it doesn't scale the amount as the game does and logs `Reputation gained with
-security (+3)`. `trade.opens` (default `false`) lets the `trade` effect open; closing it then changes cash by minus a random
+Reputation starts from `rep_exact.FACTION` in hundredths if given (`"rep_exact.security": -4050` is -40.5), else
+`rep.FACTION`, and `game.rep` and `game.rep_exact` both read from it. The `reputation` effect changes the run's own
+decimal copy, clamped to -200 to 200, so later reads in that run see it (every faction exists, the cartel too); it
+doesn't scale the amount as the game does and logs `Reputation gained with security (+0.5)`. A `coin` setting doesn't
+apply to reputation. `trade.opens` (default `false`) lets the `trade` effect open; closing it then changes cash by minus a random
 0 to `lose_cash_up_to` (0 to 2147483646; left out: no change, nothing drawn) and buys nothing. `trade.cart` lists the names `take_cart`
 hands over (default none). `take_back` is `newest` (default) or `oldest`. `lose_carried` is `roll` (default: each carried
 item is lost with the effect's chance) or a list of names reported lost every time, with nothing removed or rolled. Every

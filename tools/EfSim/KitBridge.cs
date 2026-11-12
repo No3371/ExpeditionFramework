@@ -79,17 +79,25 @@ internal sealed class KitBridge : IBridge
         return lost;
     }
 
-    public int GameValue(string name) =>
-        reputation.TryGetValue(name, out int changed) ? changed
-        : settings.CoinGame.Contains(name) ? random.Next(2) : settings.Game.TryGetValue(name, out int value) ? value : 0;
-    // Reputation this run changed, by game.NAME: later reads see it, as in the game. Every faction exists, clamped as the game clamps.
-    private readonly Dictionary<string, int> reputation = new Dictionary<string, int>();
-    public string Reputation(string faction, int amount)
+    public int GameValue(string name)
+    {
+        string faction = GameReads.RepFaction(name, out bool exact);
+        if (faction != null && GameReads.IsFaction(faction)) return GameReads.RepRead(Rep(faction), exact);
+        return settings.CoinGame.Contains(name) ? random.Next(2) : settings.Game.TryGetValue(name, out int value) ? value : 0;
+    }
+
+    // Reputation this run changed, by faction: later reads see it, as in the game. It starts from the seeded
+    // rep_exact.FACTION (hundredths) or else rep.FACTION. Every faction exists, clamped as the game clamps, nothing scaled.
+    private readonly Dictionary<string, double> reputation = new Dictionary<string, double>();
+    private double Rep(string faction) =>
+        reputation.TryGetValue(faction, out double changed) ? changed
+        : settings.Game.TryGetValue("rep_exact." + faction, out int x100) ? x100 / 100.0
+        : settings.Game.TryGetValue("rep." + faction, out int whole) ? whole : 0;
+    public string Reputation(string faction, double amount)
     {
         if (amount == 0 || !GameReads.IsFaction(faction)) return null;
-        string name = "rep." + faction;
-        reputation[name] = Math.Max(-200, Math.Min(200, GameValue(name) + amount));
-        return "Reputation " + (amount > 0 ? "gained" : "lost") + " with " + faction + " (" + (amount > 0 ? "+" : "") + amount + ")";
+        reputation[faction] = Math.Max(-200, Math.Min(200, Rep(faction) + amount));
+        return "Reputation " + (amount > 0 ? "gained" : "lost") + " with " + faction + " (" + GameReads.RepAmount(amount) + ")";
     }
     // The row's store when sim.json gives the row memory; otherwise an empty one for this run alone.
     public IMemory Memory { get; }

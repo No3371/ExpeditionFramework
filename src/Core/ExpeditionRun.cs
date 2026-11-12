@@ -1181,7 +1181,7 @@ namespace ExpeditionFramework.Core
         public void NoteCheck(int sides, int natural, int modifier, int target) { }
         public void NoteDie(int sides, int natural) { }
         public void Wound(string kind) { }
-        public string Reputation(string faction, int amount) => null;
+        public string Reputation(string faction, double amount) => null;
         public void NightLog(string text, string color) { }
         public void PlaySound(string id) { }
         public void Emit(string hook, IEntity subject, IEntity other) { }

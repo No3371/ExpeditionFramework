@@ -453,16 +453,17 @@ namespace ExpeditionFramework.Core
         /// <summary>
         /// The player fact game.NAME reads, 0 for a name the host doesn't know. The game knows luck, roll_luck, wounds,
         /// maimed, day (the game's own day counter), clears / clears.AREA (how often the player has cleared the reading
-        /// area / AREA of its pack) and rep.FACTION (the player's reputation with FACTION, -200 to 200; see GameReads).
+        /// area / AREA of its pack), rep.FACTION (the player's reputation with FACTION, -200 to 200, cut to a whole number)
+        /// and rep_exact.FACTION (the same in hundredths, rounded; see GameReads).
         /// A sim reads whatever its config lists for the name.
         /// </summary>
         int GameValue(string name);
         /// <summary>
-        /// Changes the player's reputation with a faction (a GameReads.Factions name) the way the game's own events do, so
-        /// perks and difficulty scale it. Returns the game's own night log line for the change, or null if the player has no
-        /// such faction (the cartel exists only on the drug dealer start) and nothing changed.
+        /// Changes the player's reputation with a faction (a GameReads.Factions name) by a decimal amount, the way the game's
+        /// own events do, so perks and difficulty scale it. Returns the game's own night log line for the change, or null if
+        /// the amount is 0 or the player has no such faction (the cartel exists only on the drug dealer start) and nothing changed.
         /// </summary>
-        string Reputation(string faction, int amount);
+        string Reputation(string faction, double amount);
         /// <summary>Where packs keep memory.* across nights. The game keeps it in the player's save; a sim can keep it in a MemoryStore.</summary>
         IMemory Memory { get; }
         void Wound(string kind);
@@ -494,6 +495,7 @@ namespace ExpeditionFramework.Core
         }
 
         private const string Rep = "rep.";
+        private const string RepExact = "rep_exact.";
 
         /// <summary>
         /// The factions the game keeps reputation with, as packs name them: the game's FACTION_ ids in lower case without
@@ -506,14 +508,28 @@ namespace ExpeditionFramework.Core
         /// <summary>The game's id for a faction, such as FACTION_BLACK_MARKET for black_market.</summary>
         public static string FactionId(string faction) => "FACTION_" + faction.ToUpperInvariant();
 
-        /// <summary>The faction game.NAME reads the reputation of, or null when NAME isn't a rep.FACTION read.</summary>
-        public static string RepFaction(string name) =>
-            name != null && name.StartsWith(Rep, StringComparison.Ordinal) ? name.Substring(Rep.Length) : null;
+        /// <summary>
+        /// The faction game.NAME reads the reputation of, or null when NAME is neither rep.FACTION (a whole number, cut
+        /// toward zero as the game shows it) nor rep_exact.FACTION (hundredths, rounded); <paramref name="exact"/> says which.
+        /// </summary>
+        public static string RepFaction(string name, out bool exact)
+        {
+            exact = name != null && name.StartsWith(RepExact, StringComparison.Ordinal);
+            if (exact) return name.Substring(RepExact.Length);
+            return name != null && name.StartsWith(Rep, StringComparison.Ordinal) ? name.Substring(Rep.Length) : null;
+        }
+
+        /// <summary>What game.rep.FACTION, or game.rep_exact.FACTION when exact, reads for a reputation of <paramref name="amount"/>.</summary>
+        public static int RepRead(double amount, bool exact) =>
+            exact ? (int)Math.Round(amount * 100, MidpointRounding.AwayFromZero) : (int)amount;
+
+        /// <summary>A reputation change as the night log shows it: +3, -0.5, +1.25.</summary>
+        public static string RepAmount(double amount) => amount.ToString("+0.##;-0.##", System.Globalization.CultureInfo.InvariantCulture);
 
         /// <summary>The problem with game.NAME when it reads reputation of a faction the game doesn't have, else null.</summary>
         public static string BadRead(string name)
         {
-            string faction = RepFaction(name);
+            string faction = RepFaction(name, out _);
             return faction == null || IsFaction(faction) ? null : UnknownFaction(faction);
         }
 
