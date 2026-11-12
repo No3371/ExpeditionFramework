@@ -69,7 +69,9 @@ namespace ExpeditionFramework.Core
         public static readonly Shape Interaction = new Shape(("use", Field.Text), ("id", Field.Text), ("label", Field.Any), ("group", Field.Text),
             ("in", Field.Texts), ("targets", Field.Text), ("turn", Field.Flag), ("once", Field.Flag), ("stay", Field.Flag), ("sound", Field.Text),
             ("sound_else", Field.Text), ("when", Field.Any), ("where", Field.Any), ("uses", Field.Any), ("confirm", Field.Any), ("do", Field.Any),
-            ("check", Field.Any), ("after", Field.Any), ("preview", Field.Any));
+            ("check", Field.Any), ("after", Field.Any), ("preview", Field.Any), ("info", Field.Any));
+        public static readonly Shape InfoIcon = new Shape(("icon", Field.Text), ("when", Field.Any));
+        public static readonly Shape InfoBar = new Shape(("bar", Field.Any), ("max", Field.Any), ("label", Field.Any), ("tone", Field.Tone), ("when", Field.Any));
         public static readonly Shape Confirm = new Shape(("when", Field.Any), ("text", Field.Any), ("yes", Field.Any), ("no", Field.Any));
 
         /// <summary>An item use written as an object with "select".</summary>

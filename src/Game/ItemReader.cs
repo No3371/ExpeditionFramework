@@ -20,6 +20,13 @@ namespace ExpeditionFramework.Game
 
         public static bool IsFirearm(GameItem item) => item.IsGameItemType(FirearmType);
 
+        /// <summary>The item's picture as the bag draws it, or null for an item that isn't from the game.</summary>
+        public static UnityEngine.Sprite Picture(RunItem item)
+        {
+            GameItem game = item?.Handle as GameItem ?? (item?.Handle as List<GameItem>)?.FirstOrDefault();
+            return game is GameItemElement element ? element.ResolveSpriteByName(element.spritePath) : null;
+        }
+
         public bool IsMelee(GameItem item) => item.IsGameItemType(MeleeType)
             || (content.ItemStats.TryGetValue(item.identifier, out ItemStats stats) && stats.Tags.Contains("melee"));
 

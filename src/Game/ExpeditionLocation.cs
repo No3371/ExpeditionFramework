@@ -160,7 +160,7 @@ namespace ExpeditionFramework.Game
             if (!prepared) Prepare();
             if (logWindow == null || !logWindow.IsAlive) OpenLog();
             if (actionsWindow == null || !actionsWindow.IsAlive) OpenActions();
-            // Buttons wrap to the window's width, so lay them out again when that width changes.
+            // Action rows are sized to the window's width, so lay them out again when that width changes.
             if (actionsHost != null && Mathf.Abs(FlowWidth() - flowWidth) > 1f)
             {
                 shownButtons = null;
@@ -323,7 +323,10 @@ namespace ExpeditionFramework.Game
         {
             public string Group;
             public string Label;
+            public List<InfoPiece> Info = new List<InfoPiece>();
             public Action Press;
+
+            public string Signature => Group + "\u0001" + Label + "\u0001" + string.Join("\u0002", Info);
         }
 
         private List<ActionButton> CurrentButtons()
@@ -342,31 +345,26 @@ namespace ExpeditionFramework.Game
                 string label = run.FrameworkText(area.Texts.ContainsKey(specific) ? specific : "ef_leave");
                 return new List<ActionButton> { new ActionButton { Group = "move", Label = label, Press = Depart } };
             }
-            return run.Options().Select(option => new ActionButton { Group = option.Group, Label = option.Label, Press = () => Choose(option, false) }).ToList();
+            return run.Options().Select(option => new ActionButton { Group = option.Group, Label = option.Label, Info = option.Info, Press = () => Choose(option, false) }).ToList();
         }
 
         private void RefreshButtons()
         {
             List<ActionButton> buttons = CurrentButtons();
-            string signature = string.Join("|", buttons.Select(b => b.Group + b.Label));
+            string signature = string.Join("|", buttons.Select(b => b.Signature));
             if (signature == shownButtons) return;
             shownButtons = signature;
             CustomUIBuilder.ClearContainer(actionsHost);
             CustomUIBuilder.RebuildLayout(actionsWindow.Rect);
             flowWidth = FlowWidth();
             var builder = new CustomUIBuilder(CustomUIManager.Instance, actionsWindow, actionsHost);
-            var items = new List<(RectTransform Item, bool NewRow)>();
+            var rows = new List<(RectTransform Button, RectTransform Text, int Icons)>();
             foreach (IGrouping<string, ActionButton> group in buttons.GroupBy(b => b.Group).OrderBy(g => OrderOf(g.Key)))
             {
                 builder.AddLabel(Paint(GroupLabel(group.Key), "heading"));
-                items.Add((LastChild(actionsHost), true));
-                foreach (ActionButton button in group)
-                {
-                    builder.AddButton(button.Label, () => button.Press());
-                    items.Add((LastChild(actionsHost), false));
-                }
+                foreach (ActionButton button in group) rows.Add(AddActionRow(builder, button));
             }
-            PanelLayout.FlowIntoRows(actionsHost, items, flowWidth);
+            PanelLayout.SizeRows(rows, flowWidth);
             CustomUIBuilder.RebuildLayout(actionsWindow.Rect);
 
             // Size the window to its rows: its frame (window height less content height) plus the content's own height.
@@ -379,7 +377,61 @@ namespace ExpeditionFramework.Game
             }
         }
 
-        private static RectTransform LastChild(RectTransform parent) => (RectTransform)parent.GetChild(parent.childCount - 1);
+        // One action per row: the button, then its info. Icons sit left of a column of text lines and bars.
+        private static (RectTransform Button, RectTransform Text, int Icons) AddActionRow(CustomUIBuilder builder, ActionButton button)
+        {
+            builder.BeginRow(PanelLayout.InfoGap, TextAnchor.MiddleLeft);
+            builder.AddButton(button.Label, () => button.Press());
+            RectTransform pressed = builder.Last.Rect;
+            int icons = 0;
+            foreach (InfoPiece piece in button.Info.Where(p => p.Kind == InfoKind.Icon))
+            {
+                Sprite sprite = piece.Item != null ? ItemReader.Picture(piece.Item) : CustomUIManager.Instance.GetSprite(piece.Sprite, quiet: true);
+                if (sprite == null) continue;
+                builder.AddImage(sprite, PanelLayout.IconSize, PanelLayout.IconSize);
+                if (builder.Last.image != null) builder.Last.image.preserveAspect = true;
+                LayoutElement size = builder.Last.Rect.GetComponent<LayoutElement>();
+                if (size != null)
+                {
+                    size.minWidth = PanelLayout.IconSize;
+                    size.minHeight = PanelLayout.IconSize;
+                }
+                icons++;
+            }
+            builder.BeginColumn(PanelLayout.InfoLineSpacing, TextAnchor.MiddleLeft);
+            RectTransform text = builder.CurrentContainer;
+            foreach (InfoPiece piece in button.Info.Where(p => p.Kind != InfoKind.Icon))
+            {
+                if (piece.Kind == InfoKind.Text) AddInfoLine(builder, Paint(piece.Text, piece.Tone));
+                else AddInfoBar(builder, piece);
+            }
+            builder.End();
+            builder.End();
+            return (pressed, text, icons);
+        }
+
+        private static void AddInfoLine(CustomUIBuilder builder, string text)
+        {
+            builder.AddLabel(text);
+            if (builder.Last.text != null) builder.Last.text.enableWordWrapping = true;
+        }
+
+        // The bar's own label shows the numbers when the prefab has one; otherwise they go on a line under it.
+        private static void AddInfoBar(CustomUIBuilder builder, InfoPiece piece)
+        {
+            string label = piece.Text ?? piece.Value + "/" + piece.Max;
+            builder.AddProgressBar(piece.Max > 0 ? (float)piece.Value / piece.Max : 0f);
+            CustomUIElement bar = builder.Last;
+            bar.SetPreferredSize(-1f, PanelLayout.BarHeight);
+            bar.SetFlexible(1f, -1f);
+            if (bar.progressBar != null && piece.Tone != null && bar.progressBar.fillImage != null
+                && ToneColors.TryGetValue(piece.Tone, out string hex) && ColorUtility.TryParseHtmlString(hex, out Color color))
+            {
+                bar.progressBar.fillImage.color = color;
+            }
+            if (bar.progressBar != null && bar.progressBar.label != null) bar.SetProgress(piece.Max > 0 ? (float)piece.Value / piece.Max : 0f, label);
+            else AddInfoLine(builder, Paint("<size=85%>" + label + "</size>", "dim"));
+        }
 
         private int OrderOf(string group)
         {

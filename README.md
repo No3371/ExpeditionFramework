@@ -137,7 +137,8 @@ the same thing, and it answers each question separately:
 ```json
 {
   "id": "blast_foreman",
-  "label": { "text": "sa_action_blast", "args": ["item.name"] },
+  "label": "sa_action_blast",
+  "info": [ { "icon": "item" }, { "text": "sa_info_blast", "args": ["item.name"] } ],
   "group": "tactics",
   "uses": { "select": "#explosive", "consume": 1 },
   "when": "target.hp > 3",
@@ -152,12 +153,44 @@ the same thing, and it answers each question separately:
 | Question | Field |
 |---|---|
 | What can the player do, and when? | `label`, `when`, `in` (`room`, `event`, `combat`), `once` |
+| What does the player need to know? | `info`, beside the button (see [Buttons and info](#buttons-and-info)) |
 | To whom? | `targets: "enemy"` gives one button per enemy, filtered by `where`. Otherwise the owner. |
 | What can be used? | `uses.select`: an id, `#group`, a list, or `{any\|all\|not\|when}`. One button per match unless `each` is false. |
 | What happens? | `do` and `check` |
 | Are you sure? | `confirm` shows the game's dialog first |
 
-If an interaction has a `check` with a `chance`, the percent is added as the label's last argument.
+### Buttons and info
+
+The actions window shows one action per row: a button, then an info area beside it. Every button in the window is the
+same width, set by the longest label up to 40% of the window, so keep `label` to a short verb ("Shoot", "Pry it open").
+A longer label wraps onto a second line inside its button. Everything else goes in `info`, a list drawn top to bottom:
+
+| Piece | Shape | Shows |
+|---|---|---|
+| Text line | any line: a key, `{text, args, tone}` or `{cases}` | One line of text, wrapped to the info area. Rich text (`<b>`, `<size=85%>`) works. |
+| Icon | `{ "icon": "item" }`, `"with"`, or a sprite key | The item's own picture as the bag draws it (`item` is the `uses` item, `with` the paired one), or a sprite from a pack's folder: `"pack:sprite"`, or just `"sprite"` for the pack's own. Icons sit left of the text, 32 units square. |
+| Bar | `{ "bar": value, "max": value, "label": line, "tone": tone }` | A bar filled to `bar / max` (`max` defaults to 100), using the game's own progress bar. `label` is the text on the bar, `value/max` when left out. `tone` colours the fill. |
+
+Each piece can have a `when`; a piece whose `when` fails is left out. Pieces are drawn without rolling, like labels.
+
+```json
+"label": "ne_action_shoot",
+"info": [
+  { "icon": "item" },
+  { "text": "ne_action_shoot_info", "args": ["item.name", "item.$round"] },
+  { "bar": "item.loaded", "max": "item.capacity" },
+  { "when": "item.loaded == 1", "text": "ne_last_round", "tone": "bad" }
+]
+```
+
+If an interaction has a `check` with a `chance` (or a `preview`), its odds are added as the last info line, `ef_odds`
+("45% chance"), green from 67% and red under 34%. A piece that shows the odds itself replaces that line: a text line with
+`"percent"` among its `args`, or a bar whose `bar`, `max` or `label` uses the odds (`"bar": "arg.percent"`). The percent
+is still passed to the label as its last argument, so a label written before `info` existed keeps working.
+
+A pack without `info` still works: its label goes on the button and its odds beside it. To move such a pack over, make
+each label a short key and move the item names, costs and counts into `info` lines; the label's `{n}%` can go, since the
+odds now show on their own.
 
 Labels, `when`/`where` on buttons, previews and HUD lines are drawn without rolling: dice count as 1 and `variants`
 show the first text. So a button whose `when` uses `chance` always shows, and one that needs a high roll never shows
@@ -388,7 +421,7 @@ with outcome `cleared` or run variable `cleared` above 0, **knocked out** is out
 other ending (cleared runs included). A run stopped by a guard counts in none.
 
 Checks, each a `FAIL` line: load problems and missing text keys (as in `lint`), text missing or given too few arguments at run
-time, option labels or night-log lines left with an unfilled `{`, a run that never ends (over 2000 steps), a scene with no
+time, option labels, info lines or night-log lines left with an unfilled `{`, a run that never ends (over 2000 steps), a scene with no
 options, a run that throws, a decision no rule of the row's bot picks an option for, and every `expect.offered` option id that no run was offered, every `runs[n].memory.expect` value that comes out different (see Memory below), every `expect.packing` case that comes out different (see Packing below), and every `expect.loot` case whose rolls break its rule (see Loot below). Load warnings print as `WARN` and
 never fail. Exits 0 when all checks pass, 1 when any fails, 2 on bad arguments or a missing or malformed `sim.json`.
 

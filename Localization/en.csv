@@ -33,11 +33,15 @@ ef_do_heavy_strike,{0} lands a brutal hit.
 ef_do_flee,{0} bolts into the dark.
 ef_action_press_on,Press on
 ef_action_head_home,Head home
-ef_action_shoot,Shoot {1} with {0} ({2}%)
-ef_action_reload,Reload {0}
-ef_action_melee,Hit {1} with {0} ({2}%)
-ef_action_punch,Punch {0} ({1}%)
-ef_action_heal,Use {0}
+ef_action_shoot,Shoot {0}
+ef_action_reload,Reload
+ef_action_melee,Hit {0}
+ef_action_punch,Punch {0}
+ef_action_heal,Heal
+ef_info_loaded,{0}: {1}/{2} loaded
+ef_info_reload_with,with {0} (x{1})
+ef_info_melee,with {0}
+ef_info_heal,{0} (x{1})
 ef_shoot_hit,Your shot hits {0}.
 ef_shoot_miss,Your shot goes wide of {0}.
 ef_melee_hit,You connect with {0}.
@@ -48,6 +52,7 @@ ef_roll_vs,[d{4} {0}{1}={2} vs {3}]
 ef_roll,[d{1} {0}]
 ef_log,What happened
 ef_actions,What do you do?
+ef_odds,{0}% chance
 ef_trade_deal,Open the deal
 ef_trade_finish,Done trading
 ef_hands_title,In hand

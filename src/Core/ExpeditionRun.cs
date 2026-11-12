@@ -71,6 +71,8 @@ namespace ExpeditionFramework.Core
         public RunItem Item;
         public RunItem Paired;
         public string Label;
+        /// <summary>What shows beside the button, in order: the pack's "info" pieces, then a check's odds.</summary>
+        public List<InfoPiece> Info = new List<InfoPiece>();
         public string ConfirmText;
         public string ConfirmYes;
         public string ConfirmNo;
@@ -869,6 +871,7 @@ namespace ExpeditionFramework.Core
             if (i.When != null && !i.When(scope)) return false;
             int? percent = i.Preview != null ? Math.Max(0, Math.Min(100, i.Preview(scope))) : (int?)null;
             var option = new RunOption { Interaction = i, Owner = owner, Target = target, Item = item, Paired = paired, Label = Lines.Render(i.Label, scope, percent) };
+            option.Info = Info(i, scope, percent, item, paired);
             if (i.Confirm != null && (i.Confirm.When == null || i.Confirm.When(scope)))
             {
                 option.ConfirmText = Lines.Render(i.Confirm.Text, scope);
@@ -877,6 +880,45 @@ namespace ExpeditionFramework.Core
             }
             options.Add(option);
             return true;
+        }
+
+        private const int GoodOdds = 67;
+        private const int BadOdds = 34;
+
+        // Drawn like labels: without rolling. A check's odds go last unless a piece already shows them.
+        private List<InfoPiece> Info(Interaction i, IScope scope, int? percent, RunItem item, RunItem paired)
+        {
+            IScope inner = percent != null ? Scope.From(scope).WithArg("percent", percent.Value) : scope;
+            var pieces = new List<InfoPiece>();
+            foreach (InfoDef def in i.Info ?? Enumerable.Empty<InfoDef>())
+            {
+                if (def.When != null && !def.When(inner)) continue;
+                switch (def.Kind)
+                {
+                    case InfoKind.Text:
+                        string text = Lines.Render(def.Text, inner);
+                        if (text.Length > 0) pieces.Add(new InfoPiece { Kind = InfoKind.Text, Text = text, Tone = Lines.Choose(def.Text, inner)?.Tone ?? def.Tone });
+                        break;
+                    case InfoKind.Icon:
+                        RunItem shown = def.Icon == "item" ? item : def.Icon == "with" ? paired : null;
+                        if (shown != null) pieces.Add(new InfoPiece { Kind = InfoKind.Icon, Item = shown });
+                        else if (def.Icon != "item" && def.Icon != "with") pieces.Add(new InfoPiece { Kind = InfoKind.Icon, Sprite = def.Icon });
+                        break;
+                    case InfoKind.Bar:
+                        pieces.Add(new InfoPiece
+                        {
+                            Kind = InfoKind.Bar, Value = def.Bar(inner), Max = def.Max(inner), Tone = def.Tone,
+                            Text = def.Text != null ? Lines.Render(def.Text, inner) : null,
+                        });
+                        break;
+                }
+            }
+            if (percent != null && !(i.Info?.Any(d => d.ShowsOdds) ?? false))
+            {
+                string tone = percent.Value >= GoodOdds ? "good" : percent.Value < BadOdds ? "bad" : "plain";
+                pieces.Add(new InfoPiece { Kind = InfoKind.Text, Text = FrameworkText("ef_odds", percent.Value), Tone = tone });
+            }
+            return pieces;
         }
 
         public void Perform(RunOption option)

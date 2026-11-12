@@ -180,6 +180,10 @@ internal static class PackRun
                     foreach (RunOption option in options)
                     {
                         if (option.Label != null && option.Label.Contains("{")) problems.Add("unfilled label: " + option.Label);
+                        foreach (InfoPiece piece in option.Info)
+                        {
+                            if (piece.Text != null && piece.Text.Contains("{")) problems.Add("unfilled info: " + piece.Text);
+                        }
                         offered.Add(option.Interaction.Id);
                     }
                     RunOption choice = bot == null ? Wander(options, random) : bot.Choose(run, bridge, options, random);

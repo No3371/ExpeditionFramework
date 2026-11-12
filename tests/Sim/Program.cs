@@ -39,6 +39,7 @@ internal static class Program
         TestEngineVarsAreReadOnly();
         TestSpawnOutsideFight();
         TestRenderingDoesNotRoll();
+        TestActionInfo();
         TestReloadUsesWholeItems();
         TestMemory();
         TestMapMemory();
@@ -852,6 +853,45 @@ internal static class Program
         }
         Check(rolls == before, "rendering rolled " + (rolls - before) + " times");
         Check(labels.Count == 10 && labels.All(l => l == "k_0"), "a variants label should render as its first text: " + string.Join(",", labels.Distinct()));
+    }
+
+    // A button's info: text lines, icons and bars in order, "when" leaving pieces out, and a check's odds added last
+    // unless a piece already shows them.
+    private static void TestActionInfo()
+    {
+        var content = new Content();
+        var loader = new PackLoader(content, new Registry());
+        loader.Load("t", "x.json", f => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""interactions"": [
+            { ""id"": ""a"", ""label"": ""short"", ""uses"": ""pistol"",
+              ""info"": [ { ""icon"": ""item"" }, { ""text"": ""ammo"", ""args"": [""item.loaded""] }, { ""text"": ""never"", ""when"": ""0"" },
+                { ""bar"": ""item.loaded"", ""max"": ""item.capacity"", ""tone"": ""good"" }, { ""icon"": ""pic"" } ],
+              ""check"": { ""chance"": ""40"", ""success"": [], ""failure"": [] } },
+            { ""id"": ""b"", ""label"": ""short"", ""info"": [ { ""bar"": ""arg.percent"", ""label"": { ""text"": ""odds"", ""args"": [""percent""] } } ],
+              ""check"": { ""chance"": ""80"", ""success"": [], ""failure"": [] } },
+            { ""id"": ""c"", ""label"": ""old"", ""check"": { ""chance"": ""80"", ""success"": [], ""failure"": [] } }
+          ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] } }
+        }");
+        loader.Finish();
+        Check(content.Problems.Count == 0, "info: " + string.Join("; ", content.Problems));
+        if (content.Problems.Count > 0) return;
+        var bridge = new FakeBridge(new Random(1), withEverything: true);
+        RunItem gun = bridge.Items().First(i => i.Id == "pistol");
+        gun.Props["capacity"] = 8;
+        gun.Props["loaded"] = 5;
+        var run = new ExpeditionRun(content, content.Areas["t:a"], bridge, n => 1, (p, k, a) => k + "(" + string.Join(",", a) + ")", "you");
+        run.Begin();
+        RunOption a = run.Options().FirstOrDefault(o => o.Interaction.Id == "a");
+        Check(a != null && string.Join("|", a.Info) == "icon:pistol|ammo(5)|bar:5/8:|icon:t:pic|ef_odds(40)",
+            "info pieces in order, with odds last: " + (a == null ? "missing" : string.Join("|", a.Info)));
+        Check(a != null && a.Info[2].Tone == "good" && a.Info[4].Tone == "plain", "a bar keeps its tone and middling odds are plain");
+        RunOption b = run.Options().FirstOrDefault(o => o.Interaction.Id == "b");
+        Check(b != null && string.Join("|", b.Info) == "bar:80/100:odds(80)", "a piece showing the odds replaces the odds line: " + (b == null ? "missing" : string.Join("|", b.Info)));
+        RunOption c = run.Options().FirstOrDefault(o => o.Interaction.Id == "c");
+        Check(c != null && string.Join("|", c.Info) == "ef_odds(80)" && c.Label == "old(80)", "without info, the label still gets the odds and the info shows them");
+        List<string> problems = Compiled(@"{""rooms"":{""r"":{""text"":""k"",""interactions"":[{""label"":""k"",""info"":[{""icon"":""with""}],""do"":[]}]}}}").Problems;
+        Check(problems.Any(p => p.Contains("uses.with")), "an icon of the paired item needs uses.with: " + string.Join("; ", problems));
     }
 
     private static void TestWeakPointOptions(Content content, Dictionary<(string, string), string> text)

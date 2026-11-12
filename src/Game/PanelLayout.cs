@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -17,7 +18,14 @@ namespace ExpeditionFramework.Game
         public const float MinPanelHeight = 420f;
         public const float InfoMinHeight = 140f;
         public const float ButtonSpacing = 4f;
+        public const float InfoGap = 8f;
+        public const float InfoLineSpacing = 2f;
+        public const float IconSize = 32f;
+        public const float BarHeight = 14f;
 
+        private const float MinButtonWidth = 110f;
+        private const float MaxButtonShare = 0.4f;
+        private const float MinTextWidth = 80f;
         private const float PanelMargin = 24f;
         private const float PanelGap = 12f;
         private const float PanelShare = 0.32f;
@@ -64,30 +72,41 @@ namespace ExpeditionFramework.Game
             SetBox(info, infoLeft, Mathf.Min(infoBottom, infoFloor), infoRight, top);
         }
 
-        /// <summary>Moves buttons into rows, filling each left to right. An item flagged NewRow starts a new row.</summary>
-        public static void FlowIntoRows(RectTransform host, List<(RectTransform Item, bool NewRow)> items, float width)
+        /// <summary>
+        /// Gives every action row's button the same width, wide enough for the longest label up to a share of the window,
+        /// and the rest of the row to its info: its icons, then a text column that wraps.
+        /// </summary>
+        public static void SizeRows(List<(RectTransform Button, RectTransform Text, int Icons)> rows, float width)
         {
-            RectTransform row = null;
-            float used = 0f;
-            foreach ((RectTransform item, bool newRow) in items)
+            if (rows.Count == 0) return;
+            float buttonWidth = Mathf.Clamp(rows.Max(r => MeasureWidth(r.Button)), MinButtonWidth, Mathf.Max(MinButtonWidth, width * MaxButtonShare));
+            foreach ((RectTransform button, RectTransform text, int icons) in rows)
             {
-                float itemWidth = Mathf.Min(MeasureWidth(item), width);
-                // Pin the width so the row gives each button room for its text instead of squeezing it.
-                LayoutElement pin = item.GetComponent<LayoutElement>() ?? item.gameObject.AddComponent<LayoutElement>();
-                pin.minWidth = itemWidth;
-                pin.preferredWidth = itemWidth;
-                pin.flexibleWidth = 0f;
-                if (row == null || newRow || used + ButtonSpacing + itemWidth > width)
-                {
-                    row = NewRow(host);
-                    used = itemWidth;
-                }
-                else
-                {
-                    used += ButtonSpacing + itemWidth;
-                }
-                item.SetParent(row, false);
+                FitButton(button, buttonWidth);
+                Pin(text, Mathf.Max(MinTextWidth, width - buttonWidth - InfoGap - icons * (IconSize + InfoGap)));
             }
+        }
+
+        // A label longer than the shared width wraps, and the button grows to hold it.
+        private static void FitButton(RectTransform button, float width)
+        {
+            TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
+            float paddingX = label != null ? Mathf.Max(0f, button.rect.width - label.rectTransform.rect.width) : 0f;
+            float paddingY = label != null ? Mathf.Max(0f, button.rect.height - label.rectTransform.rect.height) : 0f;
+            LayoutElement pin = Pin(button, width);
+            if (label == null) return;
+            label.enableWordWrapping = true;
+            float textHeight = label.GetPreferredValues(label.text, Mathf.Max(1f, width - paddingX), float.PositiveInfinity).y;
+            pin.preferredHeight = Mathf.Max(LayoutUtility.GetPreferredHeight(button), Mathf.Ceil(textHeight + paddingY));
+        }
+
+        private static LayoutElement Pin(RectTransform item, float width)
+        {
+            LayoutElement pin = item.GetComponent<LayoutElement>() ?? item.gameObject.AddComponent<LayoutElement>();
+            pin.minWidth = width;
+            pin.preferredWidth = width;
+            pin.flexibleWidth = 0f;
+            return pin;
         }
 
         // A freshly spawned button's layout sizes aren't computed yet and read as zero, so measure its text directly,
@@ -106,19 +125,6 @@ namespace ExpeditionFramework.Game
             return width;
         }
 
-        private static RectTransform NewRow(RectTransform host)
-        {
-            var row = new GameObject("ef_row", typeof(RectTransform));
-            row.transform.SetParent(host, false);
-            HorizontalLayoutGroup group = row.AddComponent<HorizontalLayoutGroup>();
-            group.spacing = ButtonSpacing;
-            group.childControlWidth = true;
-            group.childControlHeight = true;
-            group.childForceExpandWidth = false;
-            group.childForceExpandHeight = false;
-            group.childAlignment = TextAnchor.MiddleLeft;
-            return (RectTransform)row.transform;
-        }
 
         // The game picture in the canvas's world space. On screens that aren't 16:9 the game draws black bars and keeps
         // its picture in a 16:9 area in the middle, but this canvas may still span the whole screen.

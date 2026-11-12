@@ -133,7 +133,8 @@
       "interactions": [
         {
           "id": "shoot",
-          "label": { "text": "ef_action_shoot", "args": ["item.name", "target.name"] },
+          "label": { "text": "ef_action_shoot", "args": ["target.name"] },
+          "info": [ { "icon": "item" }, { "text": "ef_info_loaded", "args": ["item.name", "item.loaded", "item.capacity"] } ],
           "group": "attack",
           "in": "combat",
           "targets": "enemy",
@@ -152,7 +153,12 @@
         },
         {
           "id": "reload",
-          "label": { "text": "ef_action_reload", "args": ["item.name"] },
+          "label": "ef_action_reload",
+          "info": [
+            { "icon": "item" },
+            { "text": "ef_info_loaded", "args": ["item.name", "item.loaded", "item.capacity"] },
+            { "text": "ef_info_reload_with", "args": ["with.name", "with.count"], "tone": "dim" }
+          ],
           "group": "tactics",
           "in": ["combat", "room"],
           "uses": { "select": "#firearm", "with": { "select": "#ammo", "where": { "fits": true }, "each": false } },
@@ -166,7 +172,8 @@
       "interactions": [
         {
           "id": "strike",
-          "label": { "text": "ef_action_melee", "args": ["item.name", "target.name"] },
+          "label": { "text": "ef_action_melee", "args": ["target.name"] },
+          "info": [ { "icon": "item" }, { "text": "ef_info_melee", "args": ["item.name"] } ],
           "group": "attack",
           "in": "combat",
           "targets": "enemy",
@@ -203,7 +210,8 @@
       "interactions": [
         {
           "id": "heal",
-          "label": { "text": "ef_action_heal", "args": ["item.name"] },
+          "label": "ef_action_heal",
+          "info": [ { "icon": "item" }, { "text": "ef_info_heal", "args": ["item.name", "item.count"] } ],
           "group": "supplies",
           "in": ["room", "combat"],
           "uses": { "select": "#medicine", "consume": 1 },

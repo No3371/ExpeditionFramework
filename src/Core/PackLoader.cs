@@ -1206,6 +1206,7 @@ namespace ExpeditionFramework.Core
                     No = LineOf(c, "no", pack, at + ".confirm", required: true),
                 };
             }
+            if (n.ContainsKey("info")) i.Info = InfoOf(n["info"], i, pack, at + ".info");
             var parts = new List<Effect>();
             if (n.ContainsKey("do")) parts.Add(Effect(n["do"], pack, at + ".do"));
             if (n.TryGetValue("check", out object check) && check is Node structured)
@@ -1219,6 +1220,61 @@ namespace ExpeditionFramework.Core
             i.Body = parts.Count == 1 ? parts[0] : Builtins.Sequence(parts);
             return i;
         }
+
+        /// <summary>The info beside a button: a list of text lines, {icon} and {bar} pieces, each with an optional "when".</summary>
+        private List<InfoDef> InfoOf(object node, Interaction i, string pack, string at)
+        {
+            var info = new List<InfoDef>();
+            if (!(node is List<object> entries))
+            {
+                Problem(at, "must be a list of lines, {icon} and {bar} pieces");
+                return info;
+            }
+            for (int index = 0; index < entries.Count; index++)
+            {
+                string path = at + "[" + index + "]";
+                object entry = entries[index];
+                if (entry is Node icon && icon.ContainsKey("icon"))
+                {
+                    CheckShape(icon, Schema.InfoIcon, path);
+                    string key = Str(icon, "icon") ?? "";
+                    if (key == "item" && i.Uses == null) Problem(path + ".icon", "\"item\" needs the interaction to have \"uses\"");
+                    else if (key == "with" && i.With == null) Problem(path + ".icon", "\"with\" needs the interaction to have \"uses.with\"");
+                    else if (key.Length == 0) Problem(path + ".icon", "must be \"item\", \"with\" or a sprite key");
+                    if (key != "item" && key != "with" && key.Length > 0 && key.IndexOf(':') < 0) key = pack + ":" + key;
+                    info.Add(new InfoDef { Kind = InfoKind.Icon, Icon = key, When = WhenOf(icon, pack, path) });
+                }
+                else if (entry is Node bar && bar.ContainsKey("bar"))
+                {
+                    CheckShape(bar, Schema.InfoBar, path);
+                    var def = new InfoDef
+                    {
+                        Kind = InfoKind.Bar,
+                        Bar = ValueOf(bar["bar"], pack, path + ".bar"),
+                        Max = bar.ContainsKey("max") ? ValueOf(bar["max"], pack, path + ".max") : (s => 100),
+                        Text = LineOf(bar, "label", pack, path, required: false),
+                        Tone = Str(bar, "tone"),
+                        When = WhenOf(bar, pack, path),
+                    };
+                    def.ShowsOdds = MentionsPercent(bar["bar"]) || (bar.ContainsKey("max") && MentionsPercent(bar["max"])) || NamesPercent(def.Text);
+                    info.Add(def);
+                }
+                else
+                {
+                    Line line = LineFrom(entry, pack, path, Schema.Case);
+                    var def = new InfoDef { Kind = InfoKind.Text, Text = line, Tone = line.Tone, ShowsOdds = NamesPercent(line) };
+                    if (entry is Node withWhen) def.When = WhenOf(withWhen, pack, path);
+                    info.Add(def);
+                }
+            }
+            return info;
+        }
+
+        private Condition WhenOf(Node n, string pack, string at) => n.ContainsKey("when") ? Condition(n["when"], pack, at + ".when") : null;
+
+        private static bool MentionsPercent(object expression) => expression is string text && text.Contains("arg.percent");
+
+        private static bool NamesPercent(Line line) => line != null && (line.UsesPercent || (line.Cases?.Any(c => NamesPercent(c.Line)) ?? false));
 
         private bool IsScene(string scene)
         {

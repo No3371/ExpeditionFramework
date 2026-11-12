@@ -59,6 +59,38 @@ namespace ExpeditionFramework.Core
         public Condition Where;
     }
 
+    public enum InfoKind { Text, Icon, Bar }
+
+    /// <summary>One piece of the info area beside an action's button: a text line, an icon, or a bar.</summary>
+    public sealed class InfoDef
+    {
+        public InfoKind Kind;
+        public Condition When;
+        public Line Text;
+        /// <summary>"item", "with", or a sprite key ("pack:sprite", or a sprite in the pack's own folder).</summary>
+        public string Icon;
+        public Value Bar;
+        public Value Max;
+        public string Tone;
+        /// <summary>Whether this piece shows the check's odds itself, so the automatic odds line is left out.</summary>
+        public bool ShowsOdds;
+    }
+
+    /// <summary>An info piece worked out for one button.</summary>
+    public sealed class InfoPiece
+    {
+        public InfoKind Kind;
+        public string Text;
+        public string Tone;
+        /// <summary>For an icon: the item whose picture to show, or else <see cref="Sprite"/>.</summary>
+        public RunItem Item;
+        public string Sprite;
+        public int Value;
+        public int Max;
+
+        public override string ToString() => Kind == InfoKind.Icon ? "icon:" + (Item?.Id ?? Sprite) : Kind == InfoKind.Bar ? "bar:" + Value + "/" + Max + ":" + Text : Text;
+    }
+
     public sealed class ConfirmDef
     {
         public Condition When;
@@ -91,9 +123,11 @@ namespace ExpeditionFramework.Core
         public bool Stay;
         public string Sound;
         public string SoundElse;
-        /// <summary>Percent shown on the button.</summary>
+        /// <summary>The odds shown beside the button, and passed to its label as the last argument.</summary>
         public Value Preview;
         public ConfirmDef Confirm;
+        /// <summary>What shows beside the button. Null when the pack gives none; a check's odds still show there.</summary>
+        public List<InfoDef> Info;
         public Effect Body;
     }
 
