@@ -682,8 +682,8 @@ internal static class Program
         Check(!warnings.TryGetValue("b", out List<string> wb) || wb.Count == 0, "a pack that only writes doesn't warn: " + string.Join("; ", wb ?? new List<string>()));
     }
 
-    // memory.PACK.NAME reads another pack's memory and can't write it. Naming a pack that isn't loaded fails the load, and a
-    // name that pack never writes warns, as an own-pack read does.
+    // memory.PACK.NAME reads another pack's memory and can't write it. A pack that isn't loaded reads 0 or "" and warns, and
+    // a name that pack never writes warns, as an own-pack read does.
     private static void TestPackMemory()
     {
         string Pack(string enter) => @"{
@@ -736,10 +736,23 @@ internal static class Program
             List<string> p = ProblemsIn(Enter(effect));
             Check(p.Count == 1 && p[0].Contains("can't be changed"), "writing memory.PACK.NAME is one problem: " + effect + " -> " + string.Join("; ", p));
         }
-        List<string> unknown = ProblemsIn(Enter("{\"set\":{\"var\":\"run.x\",\"value\":\"memory.nobody.x\"}}"));
-        Check(unknown.Count == 1 && unknown[0].Contains("memory.nobody.x reads pack nobody, which isn't loaded"), "an unloaded pack fails the load: " + string.Join("; ", unknown));
-        unknown = ProblemsIn(Enter("{\"set_text\":{\"var\":\"run.$x\",\"line\":\"hi_{memory.nobody.$x}\"}}"));
-        Check(unknown.Count == 1 && unknown[0].Contains("reads pack nobody"), "an unloaded pack in a line fails the load: " + string.Join("; ", unknown));
+        var lone = new PackSet(new Registry());
+        lone.Add("t", "ExpeditionFramework/main.json", f => Pack(@"[
+            { ""set"": { ""var"": ""run.x"", ""value"": ""memory.nobody.x + 5"" } },
+            { ""set_text"": { ""var"": ""run.$g"", ""line"": ""hi_{memory.nobody.$x}"" } }
+        ]"));
+        Content loneContent = lone.Compile(out Dictionary<string, List<string>> lp, out Dictionary<string, List<string>> lw);
+        Check(lp.Values.All(l => l.Count == 0), "an unloaded pack's memory doesn't fail the load: " + string.Join("; ", lp.Values.SelectMany(l => l)));
+        List<string> wt = lw.TryGetValue("t", out List<string> lwt) ? lwt : new List<string>();
+        Check(wt.Count == 2 && wt.Count(x => x.Contains("memory.nobody.x reads pack nobody, which isn't loaded, so it reads 0")) == 1
+            && wt.Count(x => x.Contains("memory.nobody.$x reads pack nobody, which isn't loaded, so it reads \"\"")) == 1,
+            "each read of an unloaded pack warns once: " + string.Join("; ", wt));
+        if (lp.Values.All(l => l.Count == 0))
+        {
+            var loneRun = new ExpeditionRun(loneContent, loneContent.Areas["t:a"], new FakeBridge(new Random(1), memory: new MemoryStore()), n => 1, (p, k, a) => k, "you");
+            loneRun.Begin();
+            Check(loneRun.Get("x") == 5 && loneRun.GetText("g") == "hi_", "an unloaded pack's memory reads 0 and \"\": " + loneRun.Get("x") + " / " + loneRun.GetText("g"));
+        }
 
         var standIn = new PackSet(new Registry()) { OtherPacks = new[] { "nobody" } };
         standIn.Add("t", "ExpeditionFramework/main.json", f => Pack(@"[ { ""set"": { ""var"": ""run.x"", ""value"": ""memory.nobody.x"" } } ]"));

@@ -139,7 +139,7 @@ namespace ExpeditionFramework.Core
         private readonly Dictionary<string, List<string>> warningsByPack = new Dictionary<string, List<string>>();
         // memory.* names: where each pack first reads each (owner, name), and which (owner, name) are written. Only the owner
         // writes its names, so one it never writes always reads 0 or "": a typo or a missing set. Finish warns about those
-        // and fails reads of a pack that isn't loaded.
+        // and about reads of a pack that isn't loaded.
         private readonly Dictionary<(string Reader, string Owner, string Name), (string At, string Path)> memoryReads =
             new Dictionary<(string Reader, string Owner, string Name), (string At, string Path)>();
         private readonly HashSet<(string Owner, string Name)> memoryWrites = new HashSet<(string Owner, string Name)>();
@@ -587,15 +587,17 @@ namespace ExpeditionFramework.Core
                 (string reader, string owner, string name) = read.Key;
                 (string at, string path) = read.Value;
                 current = reader;
+                string empty = name.StartsWith("$", StringComparison.Ordinal) ? "\"\"" : "0";
+                // Warnings, not problems: the pack still runs, the name just never holds anything. A missing pack is a
+                // warning too, so reading another pack's memory is optional: failing the load would make the reading pack
+                // unusable without that one installed.
                 if (!packs.Contains(owner))
                 {
-                    if (OtherPacks == null || !OtherPacks.Contains(owner)) Problem(at, path + " reads pack " + owner + ", which isn't loaded");
+                    if (OtherPacks == null || !OtherPacks.Contains(owner)) Warn(at, path + " reads pack " + owner + ", which isn't loaded, so it reads " + empty);
                     continue;
                 }
                 if (memoryWrites.Contains((owner, name))) continue;
-                // A warning, not a problem: the pack still runs, the name just never holds anything.
-                Warn(at, path + " is read but never written by " + (owner == reader ? "this pack" : "pack " + owner) + ", so it always reads "
-                    + (name.StartsWith("$", StringComparison.Ordinal) ? "\"\"" : "0"));
+                Warn(at, path + " is read but never written by " + (owner == reader ? "this pack" : "pack " + owner) + ", so it always reads " + empty);
             }
             memoryReads.Clear();
             memoryWrites.Clear();

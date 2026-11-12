@@ -241,7 +241,9 @@ count, remember a name, or open something up after an earlier night.
 - Each pack has its own memory. Two packs that both write `memory.visits` keep separate counts.
 - Another pack's memory can be read, never changed: `memory.PACK.NAME` and `memory.PACK.$NAME` read pack `PACK`'s
   values (its manifest `<ID>`), wherever `memory.NAME` reads. Using one as the `var` of `set`, `add` or `set_text` is a
-  load error, and so is naming a pack that isn't loaded, so a pack that reads another's memory needs that pack installed.
+  load error. Reading is optional: if `PACK` isn't installed, its memory reads 0 (or "" as text) and loading warns, such
+  as `memory.other.visits reads pack other, which isn't loaded, so it reads 0`. To skip the warning, put the reads in an
+  `include` with `"requires": ["PACK"]`: that file then loads only when `PACK` is installed and enabled.
 
   ```json
   { "if": { "when": "memory.night_expeditions_reborn.visits >= 3", "then": [ ... ] } }
@@ -367,8 +369,9 @@ dotnet run -c Release --project tools/EfSim -- lint ../MyPack [--mod gunsmith_ex
 Checks a pack folder without the game: loads the framework and the pack as the game would, prints each problem as `ERROR`
 and each warning as `WARN`, reports text keys missing from `Localization/en.csv`, and compares every other locale CSV with
 `en.csv` (missing or extra keys, different `{0}` placeholders). It fits a pack that depends only on the framework: `--mod`
-answers `mod(...)` and include `requires` checks and lets `memory.MOD.NAME` read that mod's memory, but loads no other
-pack, so those reads are never warned about. Exits 1 on errors (or warnings with `--strict`),
+answers `mod(...)` and include `requires` checks and counts that mod as an installed pack for `memory.MOD.NAME`, but loads
+no other pack, so those reads are never warned about. Without `--mod`, each such read warns that the pack isn't loaded,
+which fails `--strict`. Exits 1 on errors (or warnings with `--strict`),
 2 on bad arguments, else 0.
 `tests/Sim -- lint` runs the same code.
 
@@ -478,7 +481,7 @@ changes that:
 
 `ef-sim` loads no pack but the framework and yours, so another pack's memory holds only what `start` gives it. A pack named
 in any row's `start` or `expect` (`other_pack` above) counts as installed for the load, so `memory.other_pack.NAME` reads
-in your pack don't fail it, and are never warned about.
+in your pack are never warned about.
 
 Each value that comes out different is a `FAIL` such as `runs[3]: memory.foreman_beaten should be at least 2, got 1`.
 Writing `memory.` in a name, an empty name, a name with more than one `.`, unknown keys, wrong types and `min` above `max`
