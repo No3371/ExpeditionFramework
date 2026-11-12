@@ -302,7 +302,7 @@ dotnet run -c Release --project tests/Sim
 Validates the content, tests the compiler's error reporting, then plays the sample area with random choices. `SIM_RUNS` sets the count.
 
 ```bash
-dotnet run -c Release --project tests/Sim -- lint ../MyPack [--mod gunsmith_expansion] [--strict]
+dotnet run -c Release --project tools/EfSim -- lint ../MyPack [--mod gunsmith_expansion] [--strict]
 ```
 
 Checks a pack folder without the game: loads the framework and the pack as the game would, prints each problem as `ERROR`
@@ -310,3 +310,161 @@ and each warning as `WARN`, reports text keys missing from `Localization/en.csv`
 `en.csv` (missing or extra keys, different `{0}` placeholders). It fits a pack that depends only on the framework: `--mod`
 answers `mod(...)` and include `requires` checks but loads no other pack. Exits 1 on errors (or warnings with `--strict`),
 2 on bad arguments, else 0.
+`tests/Sim -- lint` runs the same code.
+
+### ef-sim run
+
+```bash
+dotnet run -c Release --project tools/EfSim -- run ../MyPack [--runs 200]
+```
+
+Reads `<pack>/sim.json`, plays each row of its run matrix with the row's bot against a framework-provided stand-in
+for the game, prints one `area kit bot runs cleared knocked out extracted` line per row, then runs the checks. `--runs`
+overrides every row's run count (small counts can miss rarely offered options). In the table, **cleared** is a run that ends
+with outcome `cleared` or run variable `cleared` above 0, **knocked out** is outcome `knocked_out`, and **extracted** is any
+other ending (cleared runs included). A run stopped by a guard counts in none.
+
+Checks, each a `FAIL` line: load problems and missing text keys (as in `lint`), text missing or given too few arguments at run
+time, option labels or night-log lines left with an unfilled `{`, a run that never ends (over 2000 steps), a scene with no
+options, a run that throws, a decision no rule of the row's bot picks an option for, and every `expect.offered` option id that no run was offered, every `expect.packing` case that comes out different (see Packing below), and every `expect.loot` case whose rolls break its rule (see Loot below). Load warnings print as `WARN` and
+never fail. Exits 0 when all checks pass, 1 when any fails, 2 on bad arguments or a missing or malformed `sim.json`.
+
+`sim.json` version 1:
+
+```json
+{
+  "version": 1,
+  "kits": {
+    "knife": {
+      "credits": 50,
+      "items": [ { "id": "kitchen_knife", "count": 2, "tags": ["melee", "in_hand"], "props": { "sides": 4 } } ]
+    }
+  },
+  "runs": [
+    { "area": "flooded_cellar", "kit": "knife", "bot": "random", "runs": 1000, "seed": 42 }
+  ],
+  "expect": { "offered": ["press_on", "head_home"] }
+}
+```
+
+`version`, `kits`, `runs` and each item `id`, row `area`, `kit` and `runs` are required; `runs` must be above 0. Defaults:
+`credits` 0, `items` empty, `count` 1, `tags` and `props` empty, `bot` `random`, `seed` 42 plus the row's index, `expect`
+empty. Unknown keys are errors, and numbers must be whole. Tags may start with `#`. An `area` without `:` gets the pack's id
+as prefix. A kit item's tags and props are layered over the pack's `item_stats` for that item,
+the kit's props winning. `samples/SampleArea/sim.json` is a working example.
+
+A row's `kit` may also be a list of kit names: run `n` of the row (counting from 0) uses `kit[n % length]`, so
+`"kit": ["light", "heavy"]` alternates. The table names such a row `light+heavy`.
+
+#### Bots
+
+A row's `bot` is `random` (built in: a uniformly random offered option, with `head_home` left out 95% of the time) or a
+name from `bots`. A bot is an ordered list of rules. Each decision takes the first rule whose `when` holds and that finds an
+offered option; a rule that finds nothing falls through to the next. If no rule picks anything the run stops with a `FAIL`.
+
+```json
+"bots": {
+  "cautious": [
+    { "when": "player.hp * 100 <= player.max_hp * 45", "pick": ["heal"] },
+    { "when": "val.scene.combat && !val.focus_is_weakest", "pick": ["shoot", "strike"], "target": "weakest" },
+    { "when": "val.scene.event", "first_except": ["rob"] },
+    { "pick": ["press_on"] }
+  ]
+}
+```
+
+A rule has an optional `when` (an expression; no `when` always holds) and exactly one of `pick` (option ids in priority
+order: the first id that has an offered option wins, with its first such option) or `first_except` (the first offered option
+whose id is not listed). `"target": "weakest"` limits `pick` to options aimed at the active foe with the lowest hp (the earlier
+foe on ties).
+
+In `when`, `self` and `player` are the player, `target` is the focused foe, and every other path and function works as in pack
+data (`run.depth`, `run.rooms`, `run.credits`, `run.<var>`, `any_enemy(target.hp < 3)`, …). Bots also read:
+
+| `val.` name | Value |
+|-------------|-------|
+| `scene.NAME` | 1 while the scene is `NAME` (`room`, `combat`, `event`, or an event's own scene name) |
+| `offered.ID` | how many offered options have id `ID` |
+| `intent_ends.SUFFIX` | active foes whose intent id ends with `SUFFIX` |
+| `foes_with.STAT` | foes in the fight, defeated or gone included, with `STAT` above 0 |
+| `focus_is_weakest` | 1 if the focused foe is the weakest active foe (or there is neither) |
+| `loaded` | rounds loaded in carried `firearm` items |
+| `shots_left` | `loaded` plus the rounds in carried `ammo` items |
+| `has_gun` | 1 if carrying a `firearm` item |
+| `coin` | 1 or 0 at even odds, drawn from the row's random stream each time it is evaluated; `&&` and `\|\|` stop early, so put it last |
+
+Errors (exit 2), each naming the place, e.g. `bots.cautious[2].when: …`: unknown keys, a `when` that doesn't compile or uses an
+unknown `val.` name, a rule with neither or both of `pick` and `first_except`, an empty `pick`, a `target` other than
+`weakest` or without `pick`, a bot named `random`, a bot with no rules, and a row naming an unknown bot. After the table, each
+rule of a bot that some row used and that never picked an option prints a `WARN` (often a mistyped id or a condition that never
+holds).
+
+#### Packing
+
+`expect.packing` checks what an area's `packing` says a bag still needs, the way the map does before an expedition:
+
+```json
+"expect": {
+  "packing": [
+    { "area": "ne_sump", "bag": [ { "id": "combat_knife", "tags": ["weapon", "melee"] } ], "missing": [] },
+    { "area": "ne_sump", "bag": [ { "id": "handmade_pistol", "tags": ["weapon", "firearm"] } ], "missing": ["ammo for the gun"] },
+    { "area": "ne_sump", "missing": ["weapon"] }
+  ]
+}
+```
+
+Each case needs `area` and `missing` (the expected texts in order, as the player reads them; `[]` means ready to go). `bag`
+items take `id`, `count`, `tags` and `props` like kit items but are not layered over `item_stats`: the case states everything
+the item carries. Leaving `bag` out means no backpack at all (the area's `no_backpack` text); `"bag": []` is an empty
+backpack. After the table a `packing: N case(s), M failed` line prints, and each case that comes out different is a `FAIL`
+such as `expect.packing[2]: ne_sump should need [ammo for the gun], got []`. Unknown keys, a missing `area` or `missing`, and
+an unknown area are errors (exit 2).
+
+#### Loot
+
+`expect.loot` rolls loot tables the way a run does and checks what came out, e.g. entries that only exist when another mod
+is installed:
+
+```json
+"expect": {
+  "loot": [
+    { "area": "ne_foundry", "tables": ["ne_supplies", "ne_arms"], "rolls": 2000, "seed": 7, "never_prefix": "gsx_" },
+    { "area": "ne_foundry", "tables": ["ne_supplies", "ne_arms"], "rolls": 2000, "seed": 7, "mods": ["gunsmith_expansion"],
+      "must_roll": ["gsx_crate_ammo", "gsx_crate_parts"] }
+  ]
+}
+```
+
+Each case needs `area`, `tables` (not empty) and `rolls` (above 0), and at least one of `never_prefix` (no rolled id may
+start with it) and `must_roll` (each listed id must roll at least once). A table or area without `:` gets the pack's id as
+prefix. Every table is rolled `rolls` times, in order, in one fresh run of `area` that is never begun (empty kit, `bridge`
+settings applied), drawing from its own random seeded with `seed` (default 42), so cases never shift the table above.
+`mods` (default none) reloads the framework and the pack with those mod ids also counted as installed for `mod(...)` and
+include `requires`, as `lint --mod` does; no other pack is loaded, and load errors or missing text keys of that reload fail
+the case. After the packing line a `loot: N case(s), M failed` line prints, and each failure is a `FAIL` such as
+`expect.loot[1]: gsx_crate_ammo never rolled`, `expect.loot[0]: rolled gsx_crate_ammo (never_prefix gsx_)` or
+`expect.loot[0]: no loot table night_expeditions_reborn:ne_armz`. Unknown keys, wrong types, an empty `tables` or
+`never_prefix`, a case with neither check, and an unknown area are errors (exit 2).
+
+#### Bridge
+
+The stand-in game reads every `game.NAME` as 0, never opens a trade screen, hands nothing over for `take_cart`, gives back
+the newest found item for `take_back`, and rolls each carried item for `lose_items`. A top-level `bridge` object changes
+that, for packs whose balance depends on it:
+
+```json
+"bridge": {
+  "game": { "luck": 50, "roll_luck": "coin" },
+  "trade": { "opens": true, "lose_cash_up_to": 29, "cart": ["cart_goods"] },
+  "take_back": "oldest",
+  "lose_carried": ["something"]
+}
+```
+
+`game` maps a name to a whole number, or to `coin`: 0 or 1 drawn from the run's random each time it is read. Unlisted
+names read 0. `trade.opens` (default `false`) lets the `trade` effect open; closing it then changes cash by minus a random
+0 to `lose_cash_up_to` (0 to 2147483646; left out: no change, nothing drawn) and buys nothing. `trade.cart` lists the names `take_cart`
+hands over (default none). `take_back` is `newest` (default) or `oldest`. `lose_carried` is `roll` (default: each carried
+item is lost with the effect's chance) or a list of names reported lost every time, with nothing removed or rolled. Every
+field is optional; unknown keys and other values are errors (exit 2). Draws come from the same random as dice and bots,
+so a setting that draws shifts every later roll of the run.

@@ -10,9 +10,9 @@ using ExpeditionFramework.Core;
 // mod(...) checks and include requirements without loading the named mod.
 internal static class Lint
 {
-    private const string Framework = "expedition_framework";
-    private const string MainFile = "ExpeditionFramework/main.json";
-    private const string Usage = "usage: dotnet run --project tests/Sim -- lint <pack folder> [--mod <id>]... [--strict]";
+    internal const string Framework = "expedition_framework";
+    internal const string MainFile = "ExpeditionFramework/main.json";
+    private const string Usage = "usage: ef-sim lint <pack folder> [--mod <id>]... [--strict]";
 
     public static int Run(string frameworkRoot, string[] args)
     {
@@ -35,33 +35,14 @@ internal static class Lint
         }
         bool strict = args.Contains("--strict");
 
-        string manifest = Path.Combine(folder, "manifest.xml");
-        Match idMatch = File.Exists(manifest) ? Regex.Match(File.ReadAllText(manifest), @"<ID>\s*([^<\s]+)\s*</ID>") : Match.Empty;
-        if (!idMatch.Success)
+        string id = ReadId(folder);
+        if (id == null)
         {
             Console.WriteLine("ERROR no <ID> in manifest.xml");
             return 2;
         }
-        string id = idMatch.Groups[1].Value;
-
-        // In the game the framework and the pack itself are always installed, so mod() answers yes for them too.
-        var set = new PackSet(new Registry()) { HasMod = mod => mod == Framework || mod == id || mods.Contains(mod) };
-        if (id != Framework) set.Add(Framework, MainFile, file => File.ReadAllText(Path.Combine(frameworkRoot, file)));
-        set.Add(id, MainFile, file => File.ReadAllText(Path.Combine(folder, file)));
-        Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
-
-        var errors = new List<string>();
-        var notes = new List<string>();
-        foreach (List<string> list in problems.Values) errors.AddRange(list);
-        foreach (List<string> list in warnings.Values) notes.AddRange(list);
-
-        Dictionary<string, string> en = ReadCsv(Path.Combine(folder, "Localization", "en.csv"));
-        var text = new Dictionary<string, Dictionary<string, string>> { [id] = en };
-        if (id != Framework) text[Framework] = ReadCsv(Path.Combine(frameworkRoot, "Localization", "en.csv"));
-        foreach ((string pack, string key) in content.TextKeys.OrderBy(k => k.Pack).ThenBy(k => k.Key))
-        {
-            if (text.TryGetValue(pack, out Dictionary<string, string> rows) && !rows.ContainsKey(key)) errors.Add("missing text " + pack + ":" + key);
-        }
+        Load(frameworkRoot, folder, id, mods, out Dictionary<string, Dictionary<string, string>> text, out List<string> errors, out List<string> notes);
+        Dictionary<string, string> en = text[id];
 
         string localization = Path.Combine(folder, "Localization");
         if (Directory.Exists(localization))
@@ -78,6 +59,39 @@ internal static class Lint
         foreach (string note in notes) Console.WriteLine("WARN " + note);
         Console.WriteLine("lint " + id + ": " + errors.Count + " error(s), " + notes.Count + " warning(s)");
         return errors.Count > 0 || (strict && notes.Count > 0) ? 1 : 0;
+    }
+
+    // The pack's <ID> from manifest.xml, or null.
+    internal static string ReadId(string folder)
+    {
+        string manifest = Path.Combine(folder, "manifest.xml");
+        Match idMatch = File.Exists(manifest) ? Regex.Match(File.ReadAllText(manifest), @"<ID>\s*([^<\s]+)\s*</ID>") : Match.Empty;
+        return idMatch.Success ? idMatch.Groups[1].Value : null;
+    }
+
+    // Compiles the framework and the pack as the game would. errors: load problems, then text keys missing from en.csv;
+    // notes: warnings. text: en.csv rows by pack (the pack and the framework).
+    internal static Content Load(string frameworkRoot, string folder, string id, ISet<string> mods,
+        out Dictionary<string, Dictionary<string, string>> text, out List<string> errors, out List<string> notes)
+    {
+        // In the game the framework and the pack itself are always installed, so mod() answers yes for them too.
+        var set = new PackSet(new Registry()) { HasMod = mod => mod == Framework || mod == id || mods.Contains(mod) };
+        if (id != Framework) set.Add(Framework, MainFile, file => File.ReadAllText(Path.Combine(frameworkRoot, file)));
+        set.Add(id, MainFile, file => File.ReadAllText(Path.Combine(folder, file)));
+        Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
+
+        errors = new List<string>();
+        notes = new List<string>();
+        foreach (List<string> list in problems.Values) errors.AddRange(list);
+        foreach (List<string> list in warnings.Values) notes.AddRange(list);
+
+        text = new Dictionary<string, Dictionary<string, string>> { [id] = ReadCsv(Path.Combine(folder, "Localization", "en.csv")) };
+        if (id != Framework) text[Framework] = ReadCsv(Path.Combine(frameworkRoot, "Localization", "en.csv"));
+        foreach ((string pack, string key) in content.TextKeys.OrderBy(k => k.Pack).ThenBy(k => k.Key))
+        {
+            if (text.TryGetValue(pack, out Dictionary<string, string> rows) && !rows.ContainsKey(key)) errors.Add("missing text " + pack + ":" + key);
+        }
+        return content;
     }
 
     // Key → text. Skips blank lines and lines starting with '#'; splits on the first comma, like the sims. A missing file has no rows.

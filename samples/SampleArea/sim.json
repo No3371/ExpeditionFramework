@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "kits": {
+    "knife": {
+      "credits": 50,
+      "items": [
+        { "id": "kitchen_knife", "count": 2, "tags": ["melee", "in_hand"], "props": { "bonus": 1, "sides": 4 } }
+      ]
+    },
+    "everything": {
+      "credits": 50,
+      "items": [
+        { "id": "kitchen_knife", "count": 2, "tags": ["melee", "in_hand"], "props": { "bonus": 1, "sides": 4 } },
+        { "id": "pistol", "count": 2, "tags": ["firearm", "in_hand"], "props": { "capacity": 6, "firepower": 4, "accuracy": 2 } },
+        { "id": "rounds", "count": 2, "tags": ["ammo"] },
+        { "id": "bandage_item", "count": 2, "tags": ["medicine"], "props": { "heal_count": 1, "heal_sides": 3, "heal_flat": 2, "stops_bleeding": 1 } },
+        { "id": "flashlight", "count": 2, "tags": ["bright"] },
+        { "id": "flashbang_grenade", "count": 2, "tags": ["bright"] },
+        { "id": "c4", "count": 2, "tags": ["explosive"] },
+        { "id": "c4_set", "count": 2, "tags": ["explosive"] },
+        { "id": "crowbar", "count": 2 },
+        { "id": "cup_noodle", "count": 2 }
+      ]
+    }
+  },
+  "bots": {
+    "cautious": [
+      { "when": "player.hp * 100 <= player.max_hp * 45 || (player.bleeding > 0 && player.hp * 10 <= player.max_hp * 7)", "pick": ["heal"] },
+      { "when": "val.scene.combat && val.has_gun && val.loaded == 0 && val.shots_left > 0", "pick": ["reload"] },
+      { "when": "val.scene.combat && val.intent_ends.wind_up > 0", "pick": ["interrupt_foreman"] },
+      { "when": "val.scene.combat && val.foes_with.blinded_once == 0 && val.coin", "pick": ["blind_foreman"] },
+      { "when": "val.scene.combat && !val.focus_is_weakest", "pick": ["shoot", "strike", "punch"], "target": "weakest" },
+      { "when": "val.scene.combat", "pick": ["shoot", "strike", "punch"] },
+      { "when": "val.scene.event && player.hp * 10 > player.max_hp * 6", "pick": ["rob", "pry"] },
+      { "when": "val.scene.event", "first_except": ["rob", "pry"] },
+      { "when": "val.offered.search_pump", "pick": ["search_pump"] },
+      { "when": "!val.offered.press_on || player.hp * 100 <= player.max_hp * 40 || (run.depth + 1 == run.rooms && val.has_gun && val.shots_left < 4) || run.credits >= 200", "pick": ["claim", "head_home"] },
+      { "pick": ["press_on"] }
+    ]
+  },
+  "runs": [
+    { "area": "flooded_cellar", "kit": "knife", "bot": "random", "runs": 2500, "seed": 42 },
+    { "area": "flooded_cellar", "kit": "everything", "bot": "random", "runs": 2500, "seed": 43 },
+    { "area": "flooded_cellar", "kit": "everything", "bot": "cautious", "runs": 2500, "seed": 44 }
+  ],
+  "expect": {
+    "offered": [
+      "press_on", "head_home", "shoot", "reload", "strike", "heal", "feed_rat", "blind_foreman", "blast_foreman",
+      "interrupt_foreman", "give", "rob", "ignore", "pry", "search_pump", "claim"
+    ]
+  }
+}
