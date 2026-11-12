@@ -98,5 +98,5 @@ probe lint (no --mod): 2 errors "memory.other.* reads pack other, which isn't lo
 ## Notes
 
 - Decisions beyond directive: (1) `OtherPacks` stand-in set for ef-sim — packs named in `sim.json` memory keys and lint `--mod` ids count as installed; their reads never warn (writes unknown). (2) `memory.OWNPACK.NAME` is a legal read of own pack but, being two-segment, not writable. (3) Unknown-pack problem and cross warnings reported once per (reader, owner, name), at first read, like existing warning.
-- In game a pack reading `memory.X.*` fails to load when X isn't installed (directive: load error). Pack ids containing `.` can't be addressed; none seen (all `<ID>`s are `a-z_`).
+- In game a pack reading `memory.X.*` fails to load when X isn't installed (directive: load error). **Superseded** by 2611122012-optional-cross-pack-memory-patch.md: an unloaded pack now reads 0/"" and warns. Pack ids containing `.` can't be addressed; none seen (all `<ID>`s are `a-z_`).
 - Not verified in-game.
