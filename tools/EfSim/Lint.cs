@@ -7,7 +7,7 @@ using ExpeditionFramework.Core;
 
 // Checks one pack folder offline: what the game would report on load, missing English text, and other locales' parity.
 // It loads the framework and that pack only, so it fits a pack that depends on nothing but the framework; --mod answers
-// mod(...) checks and include requirements without loading the named mod.
+// mod(...) checks and include requirements without loading the named mod, and lets memory.MOD.NAME read it.
 internal static class Lint
 {
     internal const string Framework = "expedition_framework";
@@ -70,12 +70,17 @@ internal static class Lint
     }
 
     // Compiles the framework and the pack as the game would. errors: load problems, then text keys missing from en.csv;
-    // notes: warnings. text: en.csv rows by pack (the pack and the framework).
+    // notes: warnings. text: en.csv rows by pack (the pack and the framework). The mods and memoryPacks stand in as installed
+    // packs whose memory the pack may read; what they write is unknown, so those reads never warn.
     internal static Content Load(string frameworkRoot, string folder, string id, ISet<string> mods,
-        out Dictionary<string, Dictionary<string, string>> text, out List<string> errors, out List<string> notes)
+        out Dictionary<string, Dictionary<string, string>> text, out List<string> errors, out List<string> notes, IEnumerable<string> memoryPacks = null)
     {
         // In the game the framework and the pack itself are always installed, so mod() answers yes for them too.
-        var set = new PackSet(new Registry()) { HasMod = mod => mod == Framework || mod == id || mods.Contains(mod) };
+        var set = new PackSet(new Registry())
+        {
+            HasMod = mod => mod == Framework || mod == id || mods.Contains(mod),
+            OtherPacks = new HashSet<string>(mods.Concat(memoryPacks ?? Enumerable.Empty<string>())),
+        };
         if (id != Framework) set.Add(Framework, MainFile, file => File.ReadAllText(Path.Combine(frameworkRoot, file)));
         set.Add(id, MainFile, file => File.ReadAllText(Path.Combine(folder, file)));
         Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);

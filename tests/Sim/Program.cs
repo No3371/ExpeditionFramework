@@ -44,6 +44,7 @@ internal static class Program
         TestMapMemory();
         TestGameReads();
         TestMemoryWarnings();
+        TestPackMemory();
         if (content.Problems.Count > 0) return Finish();
         TestWeakPointOptions(content, text);
         Play(content, text, int.Parse(Environment.GetEnvironmentVariable("SIM_RUNS") ?? "5000"));
@@ -679,6 +680,77 @@ internal static class Program
         Check(a.Any(w => w.Contains("memory.ghost" + Unwritten + ", so it always reads 0")), "a number warning says it reads 0: " + all);
         Check(a.Any(w => w.Contains("memory.$lost" + Unwritten + ", so it always reads \"\"")), "a text warning says it reads \"\": " + all);
         Check(!warnings.TryGetValue("b", out List<string> wb) || wb.Count == 0, "a pack that only writes doesn't warn: " + string.Join("; ", wb ?? new List<string>()));
+    }
+
+    // memory.PACK.NAME reads another pack's memory and can't write it. Naming a pack that isn't loaded fails the load, and a
+    // name that pack never writes warns, as an own-pack read does.
+    private static void TestPackMemory()
+    {
+        string Pack(string enter) => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": " + enter + @" } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] } }
+        }";
+        var set = new PackSet(new Registry());
+        set.Add("a", "ExpeditionFramework/main.json", f => Pack(@"[
+            { ""set"": { ""var"": ""memory.visits"", ""value"": 7 } },
+            { ""set_text"": { ""var"": ""memory.$who"", ""value"": ""player.name"" } }
+        ]"));
+        set.Add("b", "ExpeditionFramework/main.json", f => Pack(@"[
+            { ""add"": { ""var"": ""memory.visits"", ""value"": 1 } },
+            { ""set"": { ""var"": ""run.theirs"", ""value"": ""memory.a.visits * 10 + memory.visits"" } },
+            { ""set_text"": { ""var"": ""run.$who"", ""value"": ""memory.a.$who"" } },
+            { ""set_text"": { ""var"": ""run.$greet"", ""line"": ""hi_{memory.a.$who}"" } },
+            { ""set"": { ""var"": ""run.ghost"", ""value"": ""memory.a.ghost + memory.b.visits"" } }
+        ]"));
+        Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
+        Check(problems.Values.All(l => l.Count == 0), "pack memory packs: " + string.Join("; ", problems.Values.SelectMany(l => l)));
+        if (problems.Values.Any(l => l.Count > 0)) return;
+        List<string> wb = warnings.TryGetValue("b", out List<string> w) ? w : new List<string>();
+        Check(wb.Count == 1 && wb[0].Contains("memory.a.ghost is read but never written by pack a, so it always reads 0"),
+            "a never-written name of another pack warns once: " + string.Join("; ", wb));
+        Check(!warnings.TryGetValue("a", out List<string> wa) || wa.Count == 0, "the read pack doesn't warn: " + string.Join("; ", wa ?? new List<string>()));
+
+        ExpeditionRun Play(string area, IMemory memory)
+        {
+            var run = new ExpeditionRun(content, content.Areas[area], new FakeBridge(new Random(1), memory: memory), n => 1, (p, k, a) => k, "you");
+            run.Begin();
+            return run;
+        }
+        var store = new MemoryStore();
+        Play("a:a", store);
+        ExpeditionRun b = Play("b:a", store);
+        Check(b.Get("theirs") == 71, "memory.a.visits reads pack a's value beside b's own: " + b.Get("theirs"));
+        Check(b.GetText("who") == "you" && b.GetText("greet") == "hi_you", "memory.a.$who reads pack a's text: " + b.GetText("who") + " / " + b.GetText("greet"));
+        Check(store.Get("a", "visits") == 7 && store.Get("b", "visits") == 1, "reading another pack leaves both values as written: a="
+            + store.Get("a", "visits") + " b=" + store.Get("b", "visits"));
+
+        string Enter(string effect) => "{\"rooms\":{\"r\":{\"text\":\"k\",\"enter\":[" + effect + "]}}}";
+        foreach (string effect in new[]
+        {
+            "{\"set\":{\"var\":\"memory.a.x\",\"value\":1}}",
+            "{\"add\":{\"var\":\"memory.a.x\",\"value\":1}}",
+            "{\"set_text\":{\"var\":\"memory.a.$x\",\"value\":\"player.name\"}}",
+            "{\"set\":{\"var\":\"memory.t.x\",\"value\":1}}",
+        })
+        {
+            List<string> p = ProblemsIn(Enter(effect));
+            Check(p.Count == 1 && p[0].Contains("can't be changed"), "writing memory.PACK.NAME is one problem: " + effect + " -> " + string.Join("; ", p));
+        }
+        List<string> unknown = ProblemsIn(Enter("{\"set\":{\"var\":\"run.x\",\"value\":\"memory.nobody.x\"}}"));
+        Check(unknown.Count == 1 && unknown[0].Contains("memory.nobody.x reads pack nobody, which isn't loaded"), "an unloaded pack fails the load: " + string.Join("; ", unknown));
+        unknown = ProblemsIn(Enter("{\"set_text\":{\"var\":\"run.$x\",\"line\":\"hi_{memory.nobody.$x}\"}}"));
+        Check(unknown.Count == 1 && unknown[0].Contains("reads pack nobody"), "an unloaded pack in a line fails the load: " + string.Join("; ", unknown));
+
+        var standIn = new PackSet(new Registry()) { OtherPacks = new[] { "nobody" } };
+        standIn.Add("t", "ExpeditionFramework/main.json", f => Pack(@"[ { ""set"": { ""var"": ""run.x"", ""value"": ""memory.nobody.x"" } } ]"));
+        standIn.Compile(out Dictionary<string, List<string>> sp, out Dictionary<string, List<string>> sw);
+        Check(sp.Values.All(l => l.Count == 0) && sw.Values.All(l => l.Count == 0), "a stand-in pack's memory reads without problem or warning: "
+            + string.Join("; ", sp.Values.Concat(sw.Values).SelectMany(l => l)));
+
+        Expr.Compile("memory.a.b.c", out string three, pack: "t");
+        Check(three != null, "memory.a.b.c should not compile");
+        Expr.Compile("memory.a.x", out string packless);
+        Check(packless != null, "memory.a.x without a pack should not compile");
     }
 
     // An ammo item is worth its `rounds` in any gun, and reload uses as many items as it takes to fill the gun.

@@ -137,10 +137,13 @@ namespace ExpeditionFramework.Core
         private readonly List<(string Pack, List<(string At, Node Root)> Files)> pending = new List<(string, List<(string, Node)>)>();
         private readonly Dictionary<string, List<string>> problemsByPack = new Dictionary<string, List<string>>();
         private readonly Dictionary<string, List<string>> warningsByPack = new Dictionary<string, List<string>>();
-        // memory.* names per pack: where each is first read, and which are written. Packs never see each other's memory,
-        // so a name its own pack never writes always reads 0 or "" — a typo or a missing set. Finish warns about those.
-        private readonly Dictionary<(string Pack, string Name), string> memoryReads = new Dictionary<(string Pack, string Name), string>();
-        private readonly HashSet<(string Pack, string Name)> memoryWrites = new HashSet<(string Pack, string Name)>();
+        // memory.* names: where each pack first reads each (owner, name), and which (owner, name) are written. Only the owner
+        // writes its names, so one it never writes always reads 0 or "": a typo or a missing set. Finish warns about those
+        // and fails reads of a pack that isn't loaded.
+        private readonly Dictionary<(string Reader, string Owner, string Name), (string At, string Path)> memoryReads =
+            new Dictionary<(string Reader, string Owner, string Name), (string At, string Path)>();
+        private readonly HashSet<(string Owner, string Name)> memoryWrites = new HashSet<(string Owner, string Name)>();
+        private readonly HashSet<string> packs = new HashSet<string>();
         private readonly List<string> patchers = new List<string>();
         private string compilingValue;
         private string folder = "";
@@ -158,6 +161,12 @@ namespace ExpeditionFramework.Core
         /// mod(id) in expressions reads it. Mods can't change mid-game, so this is asked once, while loading.
         /// </summary>
         public Func<string, bool> HasMod { get; set; } = id => false;
+
+        /// <summary>
+        /// Packs not loaded here whose memory a loaded pack may still read as memory.PACK.NAME, for tools that load one pack
+        /// alone. What they write is unknown, so reads of them are never warned about. Null means none.
+        /// </summary>
+        public ICollection<string> OtherPacks { get; set; }
 
         /// <summary>The packs whose patches are applied. Null applies every pack's patches.</summary>
         public ICollection<string> PatchesFrom { get; set; }
@@ -190,6 +199,7 @@ namespace ExpeditionFramework.Core
             folder = slash >= 0 ? mainFile.Substring(0, slash + 1) : "";
             ReadFile(pack, mainFile, read, files, new HashSet<string>());
             pending.Add((pack, files));
+            packs.Add(pack);
             if (files.Any(f => f.Root.ContainsKey("patch")) && !patchers.Contains(pack)) patchers.Add(pack);
         }
 
@@ -572,12 +582,20 @@ namespace ExpeditionFramework.Core
                 CheckValueCycle(value);
             }
             valueUses.Clear();
-            // A warning, not a problem: the pack still runs, the name just never holds anything.
-            foreach (KeyValuePair<(string Pack, string Name), string> read in memoryReads.Where(r => !memoryWrites.Contains(r.Key)))
+            foreach (KeyValuePair<(string Reader, string Owner, string Name), (string At, string Path)> read in memoryReads)
             {
-                current = read.Key.Pack;
-                Warn(read.Value, "memory." + read.Key.Name + " is read but never written by this pack, so it always reads "
-                    + (read.Key.Name.StartsWith("$", StringComparison.Ordinal) ? "\"\"" : "0"));
+                (string reader, string owner, string name) = read.Key;
+                (string at, string path) = read.Value;
+                current = reader;
+                if (!packs.Contains(owner))
+                {
+                    if (OtherPacks == null || !OtherPacks.Contains(owner)) Problem(at, path + " reads pack " + owner + ", which isn't loaded");
+                    continue;
+                }
+                if (memoryWrites.Contains((owner, name))) continue;
+                // A warning, not a problem: the pack still runs, the name just never holds anything.
+                Warn(at, path + " is read but never written by " + (owner == reader ? "this pack" : "pack " + owner) + ", so it always reads "
+                    + (name.StartsWith("$", StringComparison.Ordinal) ? "\"\"" : "0"));
             }
             memoryReads.Clear();
             memoryWrites.Clear();
@@ -634,16 +652,16 @@ namespace ExpeditionFramework.Core
         }
 
         /// <summary>
-        /// Notes that <paramref name="pack"/> reads or writes <paramref name="path"/>. Only memory.NAME and memory.$NAME count;
-        /// the $ stays in the name, as text and number memory are separate values.
+        /// Notes that <paramref name="pack"/> reads or writes <paramref name="path"/>. Only memory.NAME and memory.PACK.NAME count,
+        /// with or without $; the $ stays in the name, as text and number memory are separate values.
         /// </summary>
         internal void NoteMemory(string pack, string path, string at, bool write)
         {
             const string head = "memory.";
-            if (pack == null || path == null || path.Length <= head.Length || !path.StartsWith(head, StringComparison.Ordinal)) return;
-            (string, string) key = (pack, path.Substring(head.Length));
-            if (write) memoryWrites.Add(key);
-            else if (!memoryReads.ContainsKey(key)) memoryReads[key] = at;
+            if (path == null || !path.StartsWith(head, StringComparison.Ordinal)) return;
+            if (!Expr.MemoryKey(path.Substring(head.Length), pack, out string owner, out string name)) return;
+            if (write) memoryWrites.Add((owner, name));
+            else if (!memoryReads.ContainsKey((pack, owner, name))) memoryReads[(pack, owner, name)] = (at, path);
         }
 
         // Unknown keys and unknown tones are warnings; a value of the wrong type is a problem. The reads that follow keep their

@@ -455,7 +455,8 @@ namespace ExpeditionFramework.Core
 
     /// <summary>
     /// Values a pack keeps across nights, as memory.NAME (numbers) and memory.$NAME (text). Each pack has its own names,
-    /// so two packs using the same name never see each other's value. Unset numbers read 0 and unset text "".
+    /// so two packs using the same name keep separate values; another pack can only read them, as memory.PACK.NAME. Unset
+    /// numbers read 0 and unset text "".
     /// </summary>
     public interface IMemory
     {

@@ -15,20 +15,26 @@ internal sealed class SimRow
 }
 internal sealed class SimPacking { public string At, Area; public List<SimItem> Bag; public List<string> Missing; }  // Bag null = no backpack
 
-// runs[n].memory: what the pack's memory.* holds before the row's runs, whether one run's writes reach the next, and what it
-// must hold after the last run. Names are as the pack writes them after "memory." ($ for text).
+// runs[n].memory: what memory.* holds before the row's runs, whether one run's writes reach the next, and what it must
+// hold after the last run. Names are as the pack writes or reads them after "memory." ($ for text): NAME is the pack's own,
+// PACK.NAME another pack's.
 internal sealed class SimMemory
 {
-    public readonly Dictionary<string, int> Numbers = new Dictionary<string, int>();
-    public readonly Dictionary<string, string> Texts = new Dictionary<string, string>();   // keyed without the $, as the store keeps them
+    // Keyed by owning pack (null: the sim's pack) and name, without the $ for text, as the store keeps them.
+    public readonly Dictionary<(string Pack, string Name), int> Numbers = new Dictionary<(string Pack, string Name), int>();
+    public readonly Dictionary<(string Pack, string Name), string> Texts = new Dictionary<(string Pack, string Name), string>();
     public bool Carry;                                                                     // false: every run starts from the start values
     public readonly List<SimMemoryCheck> Expect = new List<SimMemoryCheck>();
+
+    // The other packs named in start or expect.
+    public IEnumerable<string> Packs =>
+        Numbers.Keys.Concat(Texts.Keys).Select(k => k.Pack).Concat(Expect.Select(c => c.Pack)).Where(p => p != null).Distinct();
 
     public MemoryStore Start(string pack)
     {
         var store = new MemoryStore();
-        foreach (KeyValuePair<string, int> v in Numbers) store.Set(pack, v.Key, v.Value);
-        foreach (KeyValuePair<string, string> v in Texts) store.SetText(pack, v.Key, v.Value);
+        foreach (KeyValuePair<(string Pack, string Name), int> v in Numbers) store.Set(v.Key.Pack ?? pack, v.Key.Name, v.Value);
+        foreach (KeyValuePair<(string Pack, string Name), string> v in Texts) store.SetText(v.Key.Pack ?? pack, v.Key.Name, v.Value);
         return store;
     }
 
@@ -39,13 +45,14 @@ internal sealed class SimMemory
         foreach (SimMemoryCheck c in Expect)
         {
             string where = at + ": memory." + c.Name;
-            if (c.Name.StartsWith("$"))
+            string owner = c.Pack ?? pack;
+            if (c.Key.StartsWith("$"))
             {
-                string got = memory.GetText(pack, c.Name.Substring(1));
+                string got = memory.GetText(owner, c.Key.Substring(1));
                 if (got != c.Text) failures.Add(where + " should be \"" + c.Text + "\", got \"" + got + "\"");
                 continue;
             }
-            int value = memory.Get(pack, c.Name);
+            int value = memory.Get(owner, c.Key);
             if (c.Min != null && c.Min == c.Max) { if (value != c.Min) failures.Add(where + " should be " + c.Min + ", got " + value); }
             else if (c.Min is int min && value < min) failures.Add(where + " should be at least " + min + ", got " + value);
             else if (c.Max is int max && value > max) failures.Add(where + " should be at most " + max + ", got " + value);
@@ -53,7 +60,8 @@ internal sealed class SimMemory
         return failures;
     }
 }
-internal sealed class SimMemoryCheck { public string Name, Text; public int? Min, Max; }   // Name keeps its $; Text only for $ names
+// Name as written; Pack (null: the sim's pack) and Key split from it, Key keeping its $. Text only for $ names.
+internal sealed class SimMemoryCheck { public string Name, Pack, Key, Text; public int? Min, Max; }
 
 // expect.loot[n]: roll each table Rolls times in one run of Area, with Mods also counted as installed.
 internal sealed class SimLoot
@@ -214,8 +222,8 @@ internal sealed class SimConfig
         return bridge;
     }
 
-    // runs[n].memory: { start?, carry?, expect? }. start and expect are keyed by name (visits, $rival); expect takes a whole
-    // number (exactly), { min?, max? } or, for a $ name, text.
+    // runs[n].memory: { start?, carry?, expect? }. start and expect are keyed by name (visits, $rival, other_pack.visits);
+    // expect takes a whole number (exactly), { min?, max? } or, for a $ name, text.
     private static SimMemory MemoryOf(object value, string at)
     {
         Dictionary<string, object> obj = Obj(value, at);
@@ -227,8 +235,9 @@ internal sealed class SimConfig
             foreach (KeyValuePair<string, object> v in Obj(s, at + ".start"))
             {
                 string vat = at + ".start." + v.Key;
-                if (IsTextName(v.Key, vat)) memory.Texts[v.Key.Substring(1)] = Str(v.Value, vat);
-                else memory.Numbers[v.Key] = Int(v.Value, vat);
+                (string pack, string name) = MemoryName(v.Key, vat);
+                if (name.StartsWith("$")) memory.Texts[(pack, name.Substring(1))] = Str(v.Value, vat);
+                else memory.Numbers[(pack, name)] = Int(v.Value, vat);
             }
         }
         if (obj.TryGetValue("expect", out object e))
@@ -236,8 +245,9 @@ internal sealed class SimConfig
             foreach (KeyValuePair<string, object> v in Obj(e, at + ".expect"))
             {
                 string vat = at + ".expect." + v.Key;
-                var check = new SimMemoryCheck { Name = v.Key };
-                if (IsTextName(v.Key, vat)) check.Text = Str(v.Value, vat);
+                (string pack, string name) = MemoryName(v.Key, vat);
+                var check = new SimMemoryCheck { Name = v.Key, Pack = pack, Key = name };
+                if (name.StartsWith("$")) check.Text = Str(v.Value, vat);
                 else if (v.Value is Dictionary<string, object> range)
                 {
                     Only(range, vat, "min", "max");
@@ -254,12 +264,17 @@ internal sealed class SimConfig
         return memory;
     }
 
-    // Whether a memory name is text ($NAME). "memory.visits" would seed a name the pack never reads, so it is refused.
-    private static bool IsTextName(string name, string at)
+    // Splits a memory name into its owning pack (null: the sim's pack) and the name, $ kept. "memory.visits" would seed a
+    // name the pack never reads, so it is refused.
+    private static (string Pack, string Name) MemoryName(string name, string at)
     {
         if (name.StartsWith("memory.")) throw new FormatException(at + ": leave out memory. (write visits or $rival)");
         if (name.Length == 0 || name == "$") throw new FormatException(at + ": empty memory name");
-        return name.StartsWith("$");
+        if (!Expr.MemoryKey(name, "", out string pack, out string key))
+        {
+            throw new FormatException(at + ": a memory name is NAME or PACK.NAME (visits, $rival, other_pack.visits)");
+        }
+        return (pack.Length == 0 ? null : pack, key);
     }
 
     // expect.loot[n]: { area, tables, rolls, seed?, mods?, never_prefix?, must_roll? } with at least one of never_prefix and must_roll.

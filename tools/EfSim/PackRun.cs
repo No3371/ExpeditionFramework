@@ -27,8 +27,10 @@ internal static class PackRun
         try { config = SimConfig.Read(Path.Combine(folder, "sim.json")); }
         catch (FormatException e) { Console.WriteLine("ERROR sim.json: " + e.Message); return 2; }
 
+        // Packs whose memory the rows seed or check stand in as installed, so the pack's reads of them load.
+        var memoryPacks = new HashSet<string>(config.Rows.Where(row => row.Memory != null).SelectMany(row => row.Memory.Packs));
         Content content = Lint.Load(frameworkRoot, folder, id, new HashSet<string>(), out Dictionary<string, Dictionary<string, string>> text,
-            out List<string> errors, out List<string> notes);
+            out List<string> errors, out List<string> notes, memoryPacks);
         foreach (string note in notes) Console.WriteLine("WARN " + note);
         var failures = new List<string>(errors);          // load problems + text keys missing from en.csv
         if (content.Problems.Count == 0)
@@ -68,7 +70,7 @@ internal static class PackRun
                 foreach (BotRule rule in used.Rules.Where(rule => rule.Picked == 0)) Console.WriteLine("WARN sim.json: " + rule.At + " never picked an option");
             }
             List<string> packing = CheckPacking(id, config, areas, localize);
-            List<string> loot = CheckLoot(frameworkRoot, folder, id, content, config, localize, problems);
+            List<string> loot = CheckLoot(frameworkRoot, folder, id, content, config, localize, problems, memoryPacks);
             failures.AddRange(problems.OrderBy(p => p, StringComparer.Ordinal));
             failures.AddRange(memory);
             failures.AddRange(packing);
@@ -104,7 +106,7 @@ internal static class PackRun
 
     // expect.loot: rolls loot tables as a run of the case's area does, the pack reloaded with the case's mods counted as installed.
     private static List<string> CheckLoot(string frameworkRoot, string folder, string id, Content plain, SimConfig config, Localizer localize,
-        HashSet<string> problems)
+        HashSet<string> problems, ISet<string> memoryPacks)
     {
         var failures = new List<string>();
         if (config.Loot.Count == 0) return failures;
@@ -115,7 +117,7 @@ internal static class PackRun
             Content content = plain;
             if (c.Mods.Count > 0)
             {
-                content = Lint.Load(frameworkRoot, folder, id, new HashSet<string>(c.Mods), out _, out List<string> errors, out _);
+                content = Lint.Load(frameworkRoot, folder, id, new HashSet<string>(c.Mods), out _, out List<string> errors, out _, memoryPacks);
                 failures.AddRange(errors.Select(e => c.At + " with " + string.Join(", ", c.Mods) + ": " + e));
             }
             string areaId = AreaId(id, c.Area);

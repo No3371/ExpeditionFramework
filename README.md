@@ -237,8 +237,16 @@ count, remember a name, or open something up after an earlier night.
 - `memory.NAME` holds a whole number and `memory.$NAME` holds text. They are separate values, even with the same NAME.
   Use them as you would `run.NAME` and `run.$NAME`: in expressions and conditions, as the `var` of `set`, `add` and
   `set_text`, and in text `args`. A name never written reads 0, or "" as text.
-- Names are fixed: write each one out in full in the data.
+- Names are fixed: write each one out in full in the data. A name has no `.` in it.
 - Each pack has its own memory. Two packs that both write `memory.visits` keep separate counts.
+- Another pack's memory can be read, never changed: `memory.PACK.NAME` and `memory.PACK.$NAME` read pack `PACK`'s
+  values (its manifest `<ID>`), wherever `memory.NAME` reads. Using one as the `var` of `set`, `add` or `set_text` is a
+  load error, and so is naming a pack that isn't loaded, so a pack that reads another's memory needs that pack installed.
+
+  ```json
+  { "if": { "when": "memory.night_expeditions_reborn.visits >= 3", "then": [ ... ] } }
+  ```
+
 - A write goes into the save straight away, so it stays however the run ends. The game keeps memory in the save's mod
   data under the framework's own mod id, so every save has its own and a new game starts with none. With no save loaded,
   memory reads 0 and "" and writes do nothing.
@@ -253,7 +261,8 @@ count, remember a name, or open something up after an earlier night.
   ```
 
 - Loading warns about a `memory.` name a pack reads but never writes, such as `memory.ghost is read but never written by
-  this pack, so it always reads 0`. It is usually a typo. `ef-sim lint --strict` fails on it.
+  this pack, so it always reads 0`, or `memory.other.ghost is read but never written by pack other` for another pack's.
+  It is usually a typo. `ef-sim lint --strict` fails on it.
 - In `ef-sim`, memory lasts one run unless a `sim.json` row asks for more (see [Memory](#memory) under ef-sim run).
 
 `samples/SampleArea` counts the Foreman's defeats in `memory.foreman_beaten`, and the Foreman mentions the count when you
@@ -358,7 +367,8 @@ dotnet run -c Release --project tools/EfSim -- lint ../MyPack [--mod gunsmith_ex
 Checks a pack folder without the game: loads the framework and the pack as the game would, prints each problem as `ERROR`
 and each warning as `WARN`, reports text keys missing from `Localization/en.csv`, and compares every other locale CSV with
 `en.csv` (missing or extra keys, different `{0}` placeholders). It fits a pack that depends only on the framework: `--mod`
-answers `mod(...)` and include `requires` checks but loads no other pack. Exits 1 on errors (or warnings with `--strict`),
+answers `mod(...)` and include `requires` checks and lets `memory.MOD.NAME` read that mod's memory, but loads no other
+pack, so those reads are never warned about. Exits 1 on errors (or warnings with `--strict`),
 2 on bad arguments, else 0.
 `tests/Sim -- lint` runs the same code.
 
@@ -462,12 +472,17 @@ changes that:
 
 | Key | What it does |
 |---|---|
-| `start` | What memory holds before the row's runs, by name without `memory.`: `"visits": 3` for a number, `"$rival": "Dex"` for text. Without `carry` every run starts from these; with it, only the first |
+| `start` | What memory holds before the row's runs, by name without `memory.`: `"visits": 3` for a number, `"$rival": "Dex"` for text, `"other_pack.visits": 2` for another pack's. Without `carry` every run starts from these; with it, only the first |
 | `carry` | `true` makes the row's runs share one memory, each run seeing what the runs before it wrote, like nights in a row. Default `false` |
 | `expect` | What memory must hold after the row's last run: a whole number (exactly), `{ "min": 1, "max": 5 }` (either may be left out), or text for a `$` name. Without `carry` it checks the last run alone |
 
+`ef-sim` loads no pack but the framework and yours, so another pack's memory holds only what `start` gives it. A pack named
+in any row's `start` or `expect` (`other_pack` above) counts as installed for the load, so `memory.other_pack.NAME` reads
+in your pack don't fail it, and are never warned about.
+
 Each value that comes out different is a `FAIL` such as `runs[3]: memory.foreman_beaten should be at least 2, got 1`.
-Writing `memory.` in a name, an empty name, unknown keys, wrong types and `min` above `max` are errors (exit 2).
+Writing `memory.` in a name, an empty name, a name with more than one `.`, unknown keys, wrong types and `min` above `max`
+are errors (exit 2).
 `--runs` changes how many runs a carried row plays, so an exact `expect` on a carried count fails under it; use `min`
 and `max` where that matters.
 

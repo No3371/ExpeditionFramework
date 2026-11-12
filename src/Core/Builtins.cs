@@ -267,6 +267,11 @@ namespace ExpeditionFramework.Core
             r.Effects["set_text"] = c =>
             {
                 string target = c.Require("var") ?? "";
+                if (Expr.IsPackMemory(target))
+                {
+                    c.Error(ReadOnlyMemory(target));
+                    return s => { };
+                }
                 Action<IScope, string> write = Expr.TextWriter(target, c.PackId);
                 if (write == null)
                 {
@@ -340,9 +345,17 @@ namespace ExpeditionFramework.Core
             };
         }
 
+        private static string ReadOnlyMemory(string path) =>
+            path + " is a pack's memory read by name, which can't be changed; a pack changes its own memory as memory.NAME";
+
         private static Effect Assign(ISpec c, Func<int, int, int> apply)
         {
             string path = c.Require("var") ?? "";
+            if (Expr.IsPackMemory(path))
+            {
+                c.Error(ReadOnlyMemory(path));
+                return s => { };
+            }
             Value read = Expr.Reader(path, raw: true, pack: c.PackId);
             Action<IScope, int> write = Expr.Writer(path, c.PackId);
             if (read == null || write == null)

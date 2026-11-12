@@ -19,6 +19,9 @@ namespace ExpeditionFramework.Core
         /// <summary>Whether a mod is installed and enabled. See <see cref="PackLoader.HasMod"/>.</summary>
         public Func<string, bool> HasMod { get; set; } = id => false;
 
+        /// <summary>Packs not added whose memory the added packs may read. See <see cref="PackLoader.OtherPacks"/>.</summary>
+        public ICollection<string> OtherPacks { get; set; }
+
         /// <summary>Adds a pack. Packs compile in the order added, which decides which of two patches that set the same thing wins.</summary>
         public void Add(string pack, string mainFile, Func<string, string> read)
         {
@@ -75,7 +78,7 @@ namespace ExpeditionFramework.Core
             Restore(registry.Effects, effects);
             Restore(registry.Conditions, conditions);
             var content = new Content();
-            var loader = new PackLoader(content, registry) { HasMod = HasMod, PatchesFrom = patches };
+            var loader = new PackLoader(content, registry) { HasMod = HasMod, PatchesFrom = patches, OtherPacks = OtherPacks };
             foreach ((string pack, string main, Func<string, string> read) in packs) loader.Add(pack, main, read);
             loader.CompileAll();
             loader.Finish();
