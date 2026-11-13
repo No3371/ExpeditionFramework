@@ -69,4 +69,5 @@ During a run, the area's slots hold the ids their cards named today:
           "else": [ { "say": "sm_alley_empty" } ] } }
 ```
 
-`ef-sim run` has no map, so its runs have no intel: `intel(id)` reads 0 and `schedule` with `intel` places nothing.
+`ef-sim run` rolls no intel unless a row sets `"intel": true`; then `intel(id)` and `schedule` with `intel` work as on
+the map. See [Testing: nights in a row](testing.md#nights-in-a-row).

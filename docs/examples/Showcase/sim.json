@@ -21,7 +21,10 @@
   "runs": [
     { "area": "night_market", "kit": "blade", "runs": 400 },
     { "area": "night_market", "kit": "blade", "bot": "careful", "runs": 200,
-      "memory": { "start": { "visits": 3, "$last_deal": "a deal on day 9" }, "carry": true, "expect": { "visits": 203 } } }
+      "memory": { "start": { "visits": 3, "$last_deal": "a deal on day 9" }, "carry": true, "expect": { "visits": { "min": 203 } } } },
+    { "area": "night_market", "kit": "blade", "bot": "careful", "runs": 200, "seed": 77, "days": true, "intel": true,
+      "memory": { "start": { "visits": 3 }, "carry": true },
+      "expect": { "intel.fence": { "min": 1 }, "rep.black_market": { "min": 26 }, "rep_exact.security": { "max": -4050 } } }
   ],
   "expect": {
     "offered": ["press_on", "head_home", "strike", "heal", "hush_lookout", "listen", "trade_fence", "haggle", "walk_away", "slip_out"],

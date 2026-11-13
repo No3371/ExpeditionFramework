@@ -11,8 +11,16 @@ internal sealed class SimRow
     public string Area, Bot; public int Runs, Seed;
     public readonly List<string> Kits = new List<string>();     // run n uses Kits[n % Kits.Count]
     public SimMemory Memory;                                    // null: no "memory", every run starts with empty memory
+    public SimGame Game;                                        // null: the file's bridge.game alone
+    public bool Days;                                           // nights follow each other: game.day +1 a night, reputation carries
+    public bool Intel;                                          // roll each night's intel
+    public readonly List<SimRowCheck> Expect = new List<SimRowCheck>();
     public string Kit => string.Join("+", Kits);
 }
+// runs[n].game: game.NAME values for one row, laid over bridge.game.
+internal sealed class SimGame { public readonly Dictionary<string, int> Numbers = new Dictionary<string, int>(); public readonly HashSet<string> Coin = new HashSet<string>(); }
+// runs[n].expect entry: rep.F / rep_exact.F (end of the row's last night) or intel.SLOT (nights the slot named anything).
+internal sealed class SimRowCheck { public string Name; public int? Min, Max; }
 internal sealed class SimPacking { public string At, Area; public List<SimItem> Bag; public List<string> Missing; }  // Bag null = no backpack
 
 // runs[n].memory: what memory.* holds before the row's runs, whether one run's writes reach the next, and what it must
@@ -82,6 +90,25 @@ internal sealed class SimBridge
     public readonly List<string> Cart = new List<string>();                        // what take_cart hands over; empty by default
     public bool TakeOldest;                                                        // false: take_back hands over the newest found item
     public List<string> LoseCarried;                                               // null: lose_items rolls each carried item
+
+    // A copy with a row's game values laid over this one's. A row's rep.F or rep_exact.F drops the file's other spelling of
+    // that faction: KitBridge reads rep_exact first, so a file-wide rep_exact would otherwise hide the row's rep.
+    public SimBridge With(SimGame row)
+    {
+        var copy = new SimBridge { TradeOpens = TradeOpens, LoseCashUpTo = LoseCashUpTo, TakeOldest = TakeOldest, LoseCarried = LoseCarried };
+        foreach (KeyValuePair<string, int> v in Game) copy.Game[v.Key] = v.Value;
+        copy.CoinGame.UnionWith(CoinGame);
+        copy.Cart.AddRange(Cart);
+        foreach (string name in row.Numbers.Keys.Concat(row.Coin))
+        {
+            string faction = GameReads.RepFaction(name, out _);
+            if (faction != null) { copy.Game.Remove("rep." + faction); copy.Game.Remove("rep_exact." + faction); copy.CoinGame.Remove("rep." + faction); copy.CoinGame.Remove("rep_exact." + faction); }
+            copy.Game.Remove(name); copy.CoinGame.Remove(name);
+        }
+        foreach (KeyValuePair<string, int> v in row.Numbers) copy.Game[v.Key] = v.Value;
+        copy.CoinGame.UnionWith(row.Coin);
+        return copy;
+    }
 }
 
 // sim.json v1. Read strictly: an unknown key or a wrong type is an error, so a typo can't silently change what runs.
@@ -123,7 +150,7 @@ internal sealed class SimConfig
         {
             string at = "runs[" + n + "]";
             Dictionary<string, object> row = Obj(rows[n], at);
-            Only(row, at, "area", "kit", "bot", "runs", "seed", "memory");
+            Only(row, at, "area", "kit", "bot", "runs", "seed", "memory", "game", "days", "intel", "expect");
             var r = new SimRow
             {
                 Area = Str(Need(row, "area", at), at + ".area"),
@@ -141,6 +168,10 @@ internal sealed class SimConfig
                 throw new FormatException(at + ".bot: unknown bot " + r.Bot + " (known: " + string.Join(", ", new[] { RandomBot }.Concat(config.Bots.Keys)) + ")");
             if (r.Runs <= 0) throw new FormatException(at + ".runs must be above 0");
             if (row.TryGetValue("memory", out object m)) r.Memory = MemoryOf(m, at + ".memory");
+            if (row.TryGetValue("game", out object g)) { r.Game = new SimGame(); ReadGame(g, at + ".game", r.Game.Numbers, r.Game.Coin); }
+            if (row.TryGetValue("days", out object d)) r.Days = d is bool db ? db : throw new FormatException(at + ".days must be true or false");
+            if (row.TryGetValue("intel", out object it)) r.Intel = it is bool ib ? ib : throw new FormatException(at + ".intel must be true or false");
+            if (row.TryGetValue("expect", out object x)) r.Expect.AddRange(RowExpect(x, at + ".expect", r.Intel));
             config.Rows.Add(r);
         }
         if (top.TryGetValue("expect", out object e))
@@ -181,19 +212,7 @@ internal sealed class SimConfig
         Dictionary<string, object> obj = Obj(value, "bridge");
         Only(obj, "bridge", "game", "trade", "take_back", "lose_carried");
         var bridge = new SimBridge();
-        if (obj.TryGetValue("game", out object g))
-        {
-            foreach (KeyValuePair<string, object> v in Obj(g, "bridge.game"))
-            {
-                string at = "bridge.game." + v.Key;
-                if (v.Value is string s)
-                {
-                    if (s != "coin") throw new FormatException(at + " must be a whole number or coin");
-                    bridge.CoinGame.Add(v.Key);
-                }
-                else bridge.Game[v.Key] = Int(v.Value, at);
-            }
-        }
+        if (obj.TryGetValue("game", out object g)) ReadGame(g, "bridge.game", bridge.Game, bridge.CoinGame);
         if (obj.TryGetValue("trade", out object t))
         {
             Dictionary<string, object> trade = Obj(t, "bridge.trade");
@@ -222,6 +241,55 @@ internal sealed class SimConfig
         return bridge;
     }
 
+    // NAME: a whole number or "coin", as bridge.game and runs[n].game take.
+    private static void ReadGame(object value, string at, Dictionary<string, int> numbers, HashSet<string> coin)
+    {
+        foreach (KeyValuePair<string, object> v in Obj(value, at))
+        {
+            string vat = at + "." + v.Key;
+            if (v.Value is string s)
+            {
+                if (s != "coin") throw new FormatException(vat + " must be a whole number or coin");
+                coin.Add(v.Key);
+            }
+            else numbers[v.Key] = Int(v.Value, vat);
+        }
+    }
+
+    // A whole number (exactly) or { min?, max? } with at least one.
+    private static (int? Min, int? Max) ReadRange(object value, string at)
+    {
+        if (value is Dictionary<string, object> range)
+        {
+            Only(range, at, "min", "max");
+            if (range.Count == 0) throw new FormatException(at + " needs min or max");
+            int? min = range.TryGetValue("min", out object lo) ? Int(lo, at + ".min") : (int?)null;
+            int? max = range.TryGetValue("max", out object hi) ? Int(hi, at + ".max") : (int?)null;
+            if (min > max) throw new FormatException(at + ".min is above max");
+            return (min, max);
+        }
+        if (value is double) { int n = Int(value, at); return (n, n); }
+        throw new FormatException(at + " must be a whole number or {min, max}");
+    }
+
+    // runs[n].expect: rep.F / rep_exact.F of a faction the game has, or intel.SLOT on a row with "intel": true.
+    private static List<SimRowCheck> RowExpect(object value, string at, bool intel)
+    {
+        var checks = new List<SimRowCheck>();
+        foreach (KeyValuePair<string, object> v in Obj(value, at))
+        {
+            string vat = at + "." + v.Key;
+            string faction = GameReads.RepFaction(v.Key, out _);
+            if (faction != null) { if (!GameReads.IsFaction(faction)) throw new FormatException(vat + ": " + GameReads.UnknownFaction(faction)); }
+            else if (v.Key.StartsWith("intel.", StringComparison.Ordinal) && v.Key.Length > "intel.".Length)
+            { if (!intel) throw new FormatException(vat + " needs \"intel\": true on the row"); }
+            else throw new FormatException(vat + ": a row expects rep.FACTION, rep_exact.FACTION or intel.SLOT");
+            (int? min, int? max) = ReadRange(v.Value, vat);
+            checks.Add(new SimRowCheck { Name = v.Key, Min = min, Max = max });
+        }
+        return checks;
+    }
+
     // runs[n].memory: { start?, carry?, expect? }. start and expect are keyed by name (visits, $rival, other_pack.visits);
     // expect takes a whole number (exactly), { min?, max? } or, for a $ name, text.
     private static SimMemory MemoryOf(object value, string at)
@@ -248,16 +316,7 @@ internal sealed class SimConfig
                 (string pack, string name) = MemoryName(v.Key, vat);
                 var check = new SimMemoryCheck { Name = v.Key, Pack = pack, Key = name };
                 if (name.StartsWith("$")) check.Text = Str(v.Value, vat);
-                else if (v.Value is Dictionary<string, object> range)
-                {
-                    Only(range, vat, "min", "max");
-                    if (range.Count == 0) throw new FormatException(vat + " needs min or max");
-                    if (range.TryGetValue("min", out object lo)) check.Min = Int(lo, vat + ".min");
-                    if (range.TryGetValue("max", out object hi)) check.Max = Int(hi, vat + ".max");
-                    if (check.Min > check.Max) throw new FormatException(vat + ".min is above max");
-                }
-                else if (v.Value is double) check.Min = check.Max = Int(v.Value, vat);
-                else throw new FormatException(vat + " must be a whole number or {min, max}");
+                else (check.Min, check.Max) = ReadRange(v.Value, vat);
                 memory.Expect.Add(check);
             }
         }

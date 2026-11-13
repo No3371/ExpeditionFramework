@@ -1,11 +1,14 @@
 # ef-sim Reach + Item-Id Guard
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Author:** Claude Opus 5.5 (plan step)
 > **Parent:** 2611140152-ef-ner-next-steps-proposal.md
 > **Source:** 2611140152-ef-ner-next-steps-proposal.md (NER `.projex/`; Tracks A1–A4, B1, F-EF). Order "verify first" and "bad id → give nothing + report" confirmed by the human 2026-11-14.
 > **Related Projex:** 2611140220-ner-rep-week-intel-sim-rows-plan.md (NER `.projex/`, Requires this plan merged) | 2611140132-ef-ner-capability-boundaries-explore.md (NER) | 2611121201-ef-sim-bridge-knobs-audit.md | 2611121626-pack-memory-sim-memory-audit.md
 > **Worktree:** Yes
+> **Completed:** 2026-11-14
+> **Walkthrough:** 2611140302-ef-sim-reach-and-item-guard-walkthrough.md
+> **Log:** 2611140220-ef-sim-reach-and-item-guard-log.md
 
 ---
 
@@ -40,15 +43,15 @@ Every new key is opt-in; rows without them run exactly as today (no extra draws 
 
 ### Success Criteria
 
-- [ ] SC1 NER `ef-sim run --runs 4000` stdout byte-identical before/after (NER `sim.json` untouched by this plan).
-- [ ] SC2 Showcase `ef-sim run --runs 4000`: the 2 existing table lines identical before/after; 1 new line appended; "all checks passed".
-- [ ] SC3 Lint `--strict` 0 problems / 0 warnings for NER, `docs/examples/Starter`, `docs/examples/Showcase`.
-- [ ] SC4 `tests/Sim` exits 0.
-- [ ] SC5 New keys parse strictly: wrong types / unknown faction / `intel.X` without `"intel": true` → exit 2 with a message naming the key; unknown intel slot → exit 2.
-- [ ] SC6 `days` carries reputation and advances the day: scratch NER row (week rollover) passes `rep_week >= 1`; Showcase negative control without `days` fails its rep expectation.
-- [ ] SC7 `intel` rolls: Showcase new row passes `intel.fence >= 1`.
-- [ ] SC8 B1: the only `ItemSpawner.Spawn` call in `src/Game` is inside `ItemIds.cs`; `ModHelper.SpawnItem` gone from `DevTools.cs`; EF main project compiles with install redirected (0 errors).
-- [ ] SC9 Docs describe new keys and the new bad-id behaviour; no doc still says ef-sim has no intel or that a bad id passes silently in game.
+- [x] SC1 NER `ef-sim run --runs 4000` stdout byte-identical before/after (NER `sim.json` untouched by this plan).
+- [x] SC2 Showcase `ef-sim run --runs 4000`: the 2 existing table lines identical before/after; 1 new line appended; "all checks passed". *(Closed: the exact-203 memory expect in Showcase row 2 failed `--runs 4000` before this plan; met via substitute gates, then patch 2611140258-showcase-memory-expect-min-patch.md made the literal gate pass.)*
+- [x] SC3 Lint `--strict` 0 problems / 0 warnings for NER, `docs/examples/Starter`, `docs/examples/Showcase`.
+- [x] SC4 `tests/Sim` exits 0.
+- [x] SC5 New keys parse strictly: wrong types / unknown faction / `intel.X` without `"intel": true` → exit 2 with a message naming the key; unknown intel slot → exit 2.
+- [x] SC6 `days` carries reputation and advances the day: scratch NER row (week rollover) passes `rep_week >= 1`; Showcase negative control without `days` fails its rep expectation.
+- [x] SC7 `intel` rolls: Showcase new row passes `intel.fence >= 1`.
+- [x] SC8 B1: the only `ItemSpawner.Spawn` call in `src/Game` is inside `ItemIds.cs`; `ModHelper.SpawnItem` gone from `DevTools.cs`; EF main project compiles with install redirected (0 errors).
+- [x] SC9 Docs describe new keys and the new bad-id behaviour; no doc still says ef-sim has no intel or that a bad id passes silently in game.
 
 ### Out of Scope
 

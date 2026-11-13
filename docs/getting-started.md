@@ -169,7 +169,7 @@ in 100, and the button shows the odds ("70% chance") beside it. `say` writes a l
 `tone` (`good`, `bad`, `dim` and others) colours it. See [Check](effects.md#check) and [tones](text.md#lines).
 
 The loot table's `cup_noodle`, `bandage_item` and `crowbar` are the game's own item ids. Lint can't check them: a
-misspelled id passes lint and gives the player nothing. [Item ids](items.md#item-ids) says where to find them.
+misspelled id passes lint, gives the player nothing, and is logged as an unknown item id in the game. [Item ids](items.md#item-ids) says where to find them.
 
 ## 4. Text
 

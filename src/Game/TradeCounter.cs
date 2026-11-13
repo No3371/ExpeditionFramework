@@ -198,7 +198,7 @@ namespace ExpeditionFramework.Game
             cartKey = request.Key;
             foreach (string id in request.Stock)
             {
-                GameItem item = ItemSpawner.Spawn(id);
+                GameItem item = ItemIds.Spawn(id, "trade cart");
                 if (item != null) cart.Add(item);
             }
         }

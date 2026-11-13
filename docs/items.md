@@ -7,8 +7,9 @@ items back through loot and trade.
 
 An item id such as `crowbar`, `bandage_item` or `cup_noodle` is the game's own name for an item. The framework doesn't
 keep a list of them, so **lint and `ef-sim` can't check them**: a misspelled id in a loot table, `give_item`, a filter
-or `item_stats` passes lint with no warning, and in the game gives or matches nothing; the framework
-doesn't report it.
+or `item_stats` passes lint with no warning. In the game a filter or `item_stats` entry with it matches nothing,
+silently; giving it (`give_item`, a loot roll, a trade cart, the `debug_kit`) gives nothing and the framework logs
+`Unknown item id '...'` once per id in the game's log, and the expedition log says it could not give the item.
 
 Places to find ids:
 
@@ -17,8 +18,8 @@ Places to find ids:
 - the examples in these pages and in [examples/Showcase](examples/Showcase).
 
 Copy ids rather than typing them. To check them in the game, list them in the pack's
-[`debug_kit`](packs.md#debug-panel) and give yourself the kit from the game's debug panel: a wrong id is simply
-missing from what you get. A `#tag` is different: a tag no item can have is a warning.
+[`debug_kit`](packs.md#debug-panel) and give yourself the kit from the game's debug panel: a wrong id is
+missing from what you get and logged. A `#tag` is different: a tag no item can have is a warning.
 
 ## Item filters
 

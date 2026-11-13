@@ -3,18 +3,24 @@ using System.Collections.Generic;
 using System.Linq;
 using ExpeditionFramework.Core;
 
+// What a "days" row carries from night to night: reputation changes and the day counter.
+internal sealed class SimWorld { public readonly Dictionary<string, double> Reputation = new Dictionary<string, double>(); public int Day; }
+
 // The game's side of a run, faked from a kit: carried items, credits, and a ground pile for what the run gives.
 // Game values, trading, take-back order and carried losses follow the pack's sim.json "bridge" settings.
 internal sealed class KitBridge : IBridge
 {
     private readonly SimBridge settings;
+    private readonly SimWorld world;
     private readonly Random random;
     private readonly HashSet<string> problems;
     private readonly List<RunItem> items = new List<RunItem>();
     private readonly List<RunItem> ground = new List<RunItem>();
 
-    public KitBridge(SimKit kit, SimBridge settings, Content content, Random random, HashSet<string> problems, IMemory memory = null)
+    public KitBridge(SimKit kit, SimBridge settings, Content content, Random random, HashSet<string> problems, IMemory memory = null, SimWorld world = null)
     {
+        this.world = world;
+        reputation = world?.Reputation ?? new Dictionary<string, double>();
         this.settings = settings;
         this.random = random;
         this.problems = problems;
@@ -83,12 +89,14 @@ internal sealed class KitBridge : IBridge
     {
         string faction = GameReads.RepFaction(name, out bool exact);
         if (faction != null && GameReads.IsFaction(faction)) return GameReads.RepRead(Rep(faction), exact);
+        if (world != null && name == "day") return world.Day;
         return settings.CoinGame.Contains(name) ? random.Next(2) : settings.Game.TryGetValue(name, out int value) ? value : 0;
     }
 
     // Reputation this run changed, by faction: later reads see it, as in the game. It starts from the seeded
     // rep_exact.FACTION (hundredths) or else rep.FACTION. Every faction exists, clamped as the game clamps, nothing scaled.
-    private readonly Dictionary<string, double> reputation = new Dictionary<string, double>();
+    // The world's when the row carries one (a "days" row's nights share it), else this night's own.
+    private readonly Dictionary<string, double> reputation;
     private double Rep(string faction) =>
         reputation.TryGetValue(faction, out double changed) ? changed
         : settings.Game.TryGetValue("rep_exact." + faction, out int x100) ? x100 / 100.0

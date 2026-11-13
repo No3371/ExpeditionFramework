@@ -40,8 +40,8 @@ It also reports:
 | `--mod ID` | Counts mod `ID` as installed: `mod(ID)` reads 1, includes that require it load, and `memory.ID.NAME` reads aren't warned about. Repeatable |
 
 **What lint can't see.** Lint knows your pack, the framework and the text, but not the game's items. A misspelled
-game item id (`"item": "crowbarr"`) passes lint and `ef-sim run`, and in the game gives nothing. See
-[Item ids](items.md#item-ids).
+game item id (`"item": "crowbarr"`) passes lint and `ef-sim run`, and in the game gives nothing; the framework logs
+`Unknown item id` once per id. See [Item ids](items.md#item-ids).
 
 Lint loads no pack but the framework and yours. With `--mod`, files that need that mod are checked too, but against
 nothing from it. Lint a pack with and without each `--mod` it cares about.
@@ -77,7 +77,8 @@ Each check that fails prints a `FAIL` line:
 - a run that never ends (over 2000 steps), a scene with no options, or a run that throws;
 - a decision for which no rule of the row's bot picks an option;
 - every `expect.offered` id no run was offered;
-- every [memory](#memory), [packing](#packing) or [loot](#loot) expectation that comes out different.
+- every [memory](#memory), [packing](#packing) or [loot](#loot) expectation that comes out different;
+- every row `expect` (end reputation, intel nights) that comes out different.
 
 Load warnings print as `WARN` and never fail a run. Exit codes: 0 when all checks pass, 1 when any fails, 2 on bad
 arguments or a missing or malformed `sim.json`.
@@ -124,7 +125,8 @@ Unknown keys are errors, and numbers must be whole.
 `firearm`, `in_hand`).
 
 **Rows.** A row has `area`, `kit` and `runs` (above 0), all required, and optional `bot` (default `random`), `seed`
-(default 42 plus the row's index) and [`memory`](#memory). An `area` without `:` is in your pack. `kit` may be a list:
+(default 42 plus the row's index) and [`memory`](#memory). Rows also take `game`, `days`, `intel` and `expect`; see
+[Nights in a row](#nights-in-a-row). An `area` without `:` is in your pack. `kit` may be a list:
 run `n` uses `kit[n % length]`, so `["light", "heavy"]` alternates.
 
 **`expect.offered`** lists action ids that some run must have been offered.
@@ -183,7 +185,7 @@ changes that:
 
 ```json
 { "area": "night_market", "kit": "blade", "bot": "careful", "runs": 200,
-  "memory": { "start": { "visits": 3, "$last_deal": "a deal on day 9" }, "carry": true, "expect": { "visits": 203 } } }
+  "memory": { "start": { "visits": 3, "$last_deal": "a deal on day 9" }, "carry": true, "expect": { "visits": { "min": 203 } } } }
 ```
 
 | Key | What it does |
@@ -195,6 +197,26 @@ changes that:
 A pack named in any row's `start` or `expect` counts as installed, so `memory.PACK.NAME` reads of it aren't warned
 about. `--runs` changes how many runs a carried row plays, so use `min` and `max` rather than an exact count where that
 matters.
+
+## Nights in a row
+
+By default every run is a separate night on the bridge's game values with no intel. A row can change that:
+
+```json
+{ "area": "night_market", "kit": "blade", "bot": "careful", "runs": 200, "seed": 77, "days": true, "intel": true,
+  "memory": { "start": { "visits": 3 }, "carry": true },
+  "expect": { "intel.fence": { "min": 1 }, "rep.black_market": { "min": 26 }, "rep_exact.security": { "max": -4050 } } }
+```
+
+| Key | What it does |
+|---|---|
+| `game` | `game.NAME` values for this row only, laid over `bridge.game` (same forms: whole number or `"coin"`). A row's `rep.F` or `rep_exact.F` replaces both spellings of that faction from the bridge |
+| `days` | `true`: the row's nights follow each other. `game.day` starts at the row's (or bridge's) `day`, default 0, and goes up 1 a night; reputation a night changes stays for the next. Pair with `memory.carry` for a save that lasts the same nights |
+| `intel` | `true`: each night rolls the area's intel as the map does, from its own random, against that night's game and memory, and the run sees it in `intel(id)` and `schedule` with `intel` |
+| `expect` | After the row's last night: `rep.FACTION` / `rep_exact.FACTION` (the reputation that night ended with) and `intel.SLOT` (how many nights the slot named anything; needs `"intel": true`). A whole number or `{ "min", "max" }` |
+
+Rows without these keys play as before: separate nights, the bridge's values, no intel. `--runs` changes how many
+nights a `days` row plays, so expect ranges, not end values that depend on the count.
 
 ## Packing
 
@@ -251,7 +273,7 @@ back the newest found item for `take_back`, and rolls each carried item for `los
 
 Reputation starts from `rep_exact.FACTION` (hundredths) if given, else `rep.FACTION`, and both reads come from it. The
 `reputation` effect changes the run's own copy, kept between -200 and 200, without the game's scaling, so later reads in
-that run see the change. Every faction exists in the sim, the cartel too.
+that run see the change. With `days`, the copy lasts for the row. Every faction exists in the sim, the cartel too.
 
 Draws come from the same random as dice and bots, so a setting that draws shifts every later roll of the run.
 

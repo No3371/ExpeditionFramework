@@ -24,7 +24,11 @@ namespace ExpeditionFramework.Game
 
         private static void GiveKit(List<string> kit)
         {
-            foreach (string id in kit) ModHelper.MoveItemToInventory(ModHelper.SpawnItem(id));
+            foreach (string id in kit)
+            {
+                GameItem item = ItemIds.Spawn(id, "debug kit");
+                if (item != null) ModHelper.MoveItemToInventory(item);
+            }
             StoreUIManager.Instance.Notify("Expeditions test kit added. Move it into the satchel.");
         }
 

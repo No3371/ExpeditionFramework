@@ -42,6 +42,18 @@ internal static class PackRun
                 if (!content.Areas.TryGetValue(areaId, out AreaDef area)) { Console.WriteLine("ERROR sim.json: no area " + areaId); return 2; }
                 areas[name] = area;
             }
+            for (int r = 0; r < config.Rows.Count; r++)
+            {
+                foreach (SimRowCheck c in config.Rows[r].Expect.Where(c => c.Name.StartsWith("intel.", StringComparison.Ordinal)))
+                {
+                    string slot = c.Name.Substring("intel.".Length);
+                    if (!areas[config.Rows[r].Area].Intel.Any(s => s.Id == slot))
+                    {
+                        Console.WriteLine("ERROR sim.json: runs[" + r + "].expect." + c.Name + ": area " + config.Rows[r].Area + " has no intel " + slot);
+                        return 2;
+                    }
+                }
+            }
             var problems = new HashSet<string>();
             var offered = new HashSet<string>();
             Localizer localize = (pack, key, a) =>
@@ -61,8 +73,10 @@ internal static class PackRun
             {
                 SimRow row = config.Rows[r];
                 config.Bots.TryGetValue(row.Bot, out RuleBot bot);
-                IMemory last = Play(content, id, areas[row.Area], row, row.Kits.Select(k => config.Kits[k]).ToList(), bot, config.Bridge, runsOverride > 0 ? runsOverride : row.Runs, localize, offered, problems);
-                if (row.Memory != null) memory.AddRange(row.Memory.Check(id, last, "runs[" + r + "]"));
+                SimBridge settings = row.Game == null ? config.Bridge : config.Bridge.With(row.Game);
+                RowResult last = Play(content, id, areas[row.Area], row, row.Kits.Select(k => config.Kits[k]).ToList(), bot, settings, runsOverride > 0 ? runsOverride : row.Runs, localize, offered, problems);
+                if (row.Memory != null) memory.AddRange(row.Memory.Check(id, last.Memory, "runs[" + r + "]"));
+                memory.AddRange(CheckRow(row, last, "runs[" + r + "]"));
             }
             // A rule that never chose anything is usually a typo in its ids or a condition that can't hold; warn, don't fail.
             foreach (RuleBot used in config.Rows.Select(row => row.Bot).Distinct().Where(config.Bots.ContainsKey).Select(b => config.Bots[b]))
@@ -151,11 +165,34 @@ internal static class PackRun
 
     private static string AreaId(string id, string name) => name.Contains(':') ? name : id + ":" + name;
 
-    // Plays a row's runs and returns the memory store its last run used.
-    private static IMemory Play(Content content, string pack, AreaDef area, SimRow row, List<SimKit> kits, RuleBot bot, SimBridge settings, int runs,
+    // What a row leaves behind: the last night's memory and bridge, and how many nights each intel slot named anything.
+    private sealed class RowResult { public IMemory Memory; public KitBridge Bridge; public readonly Dictionary<string, int> IntelNights = new Dictionary<string, int>(); }
+
+    // runs[n].expect: end reputation and intel nights, compared as a memory expect is.
+    private static IEnumerable<string> CheckRow(SimRow row, RowResult result, string at)
+    {
+        foreach (SimRowCheck c in row.Expect)
+        {
+            int value = c.Name.StartsWith("intel.", StringComparison.Ordinal)
+                ? result.IntelNights.TryGetValue(c.Name.Substring("intel.".Length), out int n) ? n : 0
+                : result.Bridge?.GameValue(c.Name) ?? 0;
+            string where = at + ": " + c.Name;
+            if (c.Min != null && c.Min == c.Max) { if (value != c.Min) yield return where + " should be " + c.Min + ", got " + value; }
+            else if (c.Min is int min && value < min) yield return where + " should be at least " + min + ", got " + value;
+            else if (c.Max is int max && value > max) yield return where + " should be at most " + max + ", got " + value;
+        }
+    }
+
+    // Plays a row's runs and returns what its last night left and the intel tally.
+    private static RowResult Play(Content content, string pack, AreaDef area, SimRow row, List<SimKit> kits, RuleBot bot, SimBridge settings, int runs,
         Localizer localize, HashSet<string> offered, HashSet<string> problems)
     {
         var random = new Random(row.Seed);
+        // Intel has its own random so a row that turns intel on doesn't shift the dice of its runs against a row that doesn't.
+        Random intelRandom = row.Intel ? new Random(unchecked(row.Seed * 7919 + 1)) : null;
+        SimWorld world = row.Days ? new SimWorld() : null;
+        int firstDay = settings.Game.TryGetValue("day", out int d0) ? d0 : 0;
+        var result = new RowResult();
         string where = row.Area + " " + row.Kit + " " + row.Bot;
         int cleared = 0, knocked = 0, extracted = 0;
         // Runs share one store only when the row carries memory: rows sample independent nights, and a shared store would
@@ -165,8 +202,11 @@ internal static class PackRun
         for (int n = 0; n < runs; n++)
         {
             memory = carried ?? row.Memory?.Start(pack) ?? new MemoryStore();
-            var bridge = new KitBridge(kits[n % kits.Count], settings, content, random, problems, memory);
-            var run = new ExpeditionRun(content, area, bridge, s => random.Next(1, s + 1), localize, "you");
+            if (world != null) world.Day = firstDay + n;
+            var bridge = new KitBridge(kits[n % kits.Count], settings, content, random, problems, memory, world);
+            Dictionary<string, List<string>> intel = row.Intel ? RollIntel(area, bridge, memory, localize, intelRandom, result.IntelNights) : null;
+            var run = new ExpeditionRun(content, area, bridge, s => random.Next(1, s + 1), localize, "you", intel);
+            result.Bridge = bridge;
             try
             {
                 run.Begin();
@@ -202,7 +242,25 @@ internal static class PackRun
         }
         Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0,-18} {1,-12} {2,-8} {3,6} {4,7:0.0}% {5,11:0.0}% {6,9:0.0}%",
             row.Area, row.Kit, row.Bot, runs, 100.0 * cleared / runs, 100.0 * knocked / runs, 100.0 * extracted / runs));
-        return memory;
+        result.Memory = memory;
+        return result;
+    }
+
+    // Today's intel as the map would show it: each slot's picks as pool entries, its when read against this night's game
+    // and memory. The game shows only cards whose afterhour event started; every rolled pick counts here.
+    // A coin game read in a when draws from the run's random.
+    private static Dictionary<string, List<string>> RollIntel(AreaDef area, KitBridge bridge, IMemory memory, Localizer localize, Random random,
+        Dictionary<string, int> nights)
+    {
+        var map = new MapContext(area.Id, localize, bridge.GameValue, memory);
+        Dictionary<string, List<int>> picks = IntelRoller.Roll(area, s => random.Next(1, s + 1), map.Root);
+        var today = new Dictionary<string, List<string>>();
+        foreach (IntelSlot slot in area.Intel)
+        {
+            today[slot.Id] = picks[slot.Id].Select(p => area.Pools[slot.Pool][p]).ToList();
+            if (today[slot.Id].Count > 0) nights[slot.Id] = (nights.TryGetValue(slot.Id, out int k) ? k : 0) + 1;
+        }
+        return today;
     }
 
     // The built-in "random" bot: any option, but heads home only rarely so runs reach the end.

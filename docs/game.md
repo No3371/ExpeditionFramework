@@ -28,7 +28,8 @@ A run counts as a clear when the player leaves after it ended `cleared`, or with
 "luck": { "value": "game.luck" }
 ```
 
-In `ef-sim`, game reads come from `bridge.game` in `sim.json`. See [Testing: bridge](testing.md#bridge).
+In `ef-sim`, game reads come from `bridge.game` in `sim.json`, or a row's own `game`; a `days` row moves `game.day` and
+keeps reputation from night to night. See [Testing: bridge](testing.md#bridge).
 
 ## The reputation effect
 

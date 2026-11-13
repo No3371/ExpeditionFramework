@@ -62,7 +62,7 @@ namespace ExpeditionFramework.Game
             readFrame = -1;
         }
 
-        public string GiveItem(string itemId) => PutOnGround(string.IsNullOrEmpty(itemId) ? null : ItemSpawner.Spawn(itemId));
+        public string GiveItem(string itemId) => PutOnGround(ItemIds.Spawn(itemId, "give"));
 
         private string PutOnGround(GameItem item)
         {
