@@ -1,6 +1,6 @@
 # ef-sim Reach + Item-Id Guard
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Author:** Claude Opus 5.5 (plan step)
 > **Parent:** 2611140152-ef-ner-next-steps-proposal.md
 > **Source:** 2611140152-ef-ner-next-steps-proposal.md (NER `.projex/`; Tracks A1–A4, B1, F-EF). Order "verify first" and "bad id → give nothing + report" confirmed by the human 2026-11-14.
