@@ -1,0 +1,58 @@
+ef_player,你
+ef_found,你发现了：{0}
+ef_lost,在黑暗中丢失：{0}
+ef_leave,离开
+ef_outcome_left,趁着还能全身而退，你动身返回。
+ef_outcome_cleared,这里没什么可拿的了。你动身返回。
+ef_outcome_knocked_out,眼前一黑。
+ef_panel_title,{0} - 房间 {1}/{2}
+ef_status_hp,生命：{0}/{1}
+ef_status_turn,第 {0} 回合
+ef_status_effects,当前状态：{0}
+ef_enemy_line,{0} {1}/{2} - {3}
+ef_group_explore,探索
+ef_group_attack,攻击
+ef_group_tactics,战术
+ef_group_supplies,补给
+ef_group_move,行动
+ef_status_bleeding,流血
+ef_bleed_tick,鲜血顺着你的身侧流下。
+ef_intent_surprised,措手不及
+ef_intent_staggered,踉跄失衡
+ef_intent_strike,准备攻击
+ef_intent_wind_up,正在蓄力
+ef_intent_heavy_strike,即将重击
+ef_intent_flee,伺机逃跑
+ef_do_surprised,{0} 手忙脚乱，还没回过神来。
+ef_do_staggered,{0} 踉跄着一时缓不过劲来。
+ef_do_strike_hit,{0} 击中了你。
+ef_do_strike_miss,{0} 没有打中你。
+ef_tell_wind_up,{0} 向后蓄力，准备来一下狠的。
+ef_do_wind_up,{0} 站稳脚步蓄势。
+ef_do_heavy_strike,{0} 打出狠辣的一击。
+ef_do_flee,{0} 逃进了黑暗中。
+ef_action_press_on,继续前进
+ef_action_head_home,动身返回
+ef_action_shoot,射击 {0}
+ef_action_reload,装填
+ef_action_melee,攻击 {0}
+ef_action_punch,挥拳打 {0}
+ef_action_heal,治疗
+ef_info_loaded,{0}：已装填 {1}/{2}
+ef_info_reload_with,使用 {0}（x{1}）
+ef_info_melee,使用 {0}
+ef_info_heal,{0}（x{1}）
+ef_shoot_hit,你的子弹击中了 {0}。
+ef_shoot_miss,你的子弹打偏了，没打中 {0}。
+ef_melee_hit,你击中了 {0}。
+ef_melee_miss,{0} 闪身躲开了你的挥击。
+ef_reloaded,你装填好了 {0}。
+ef_healed,你用 {0} 处理了伤势。
+ef_roll_vs,[d{4} {0}{1}={2} 对 {3}]
+ef_roll,[d{1} {0}]
+ef_log,行动记录
+ef_actions,你要怎么做？
+ef_odds,{0}% 成功率
+ef_trade_deal,打开交易
+ef_trade_finish,结束交易
+ef_hands_title,手持栏

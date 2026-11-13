@@ -1,0 +1,47 @@
+sa_area_title,积水地窖
+sa_status_blinded,目盲
+sa_intent_call_help,正在呼救唤援
+sa_tell_call_help,{0} 深吸一口气，准备大喊求援。
+sa_do_call_help,{0} 朝楼梯间大吼一声。有人回应了。
+sa_enemy_rat,肿胀巨鼠
+sa_enemy_scrapper,拾荒混混
+sa_enemy_foreman,工头
+sa_action_feed,引开它
+sa_info_feed,把 {0} 扔到它那边
+sa_fed,{0} 叼走食物，把你抛在了脑后。
+sa_action_blind,致盲
+sa_info_blind,用 {0} 晃瞎工头
+sa_blinded,{0} 捂着眼睛踉跄后退。
+sa_action_blast,爆破
+sa_info_blast,把 {0} 扔向工头
+sa_info_odds,{0}% 命中率
+sa_blast_hit,爆炸的气浪把 {0} 整个掀离了地面。
+sa_blast_miss,炸点离你太近了。
+sa_action_interrupt,打断
+sa_info_interrupt,把 {0} 卡进对方的挥击中
+sa_interrupted,你打乱了 {0} 的节奏。
+sa_event_stranger,有个人腿上受了重伤，瘫靠在墙边。
+sa_choice_give,递给对方
+sa_info_give,把 {0} 交给对方
+sa_given,对方往你手里塞了样东西。
+sa_choice_rob,抢劫对方
+sa_info_rob,搜搜对方的口袋
+sa_robbing,对方的同伴离得比你以为的还要近。
+sa_choice_ignore,绕过去
+sa_ignored,你没有管它。
+sa_event_crate,水位线上方放着一个上了挂锁的板条箱。
+sa_choice_pry,强行撬开
+sa_info_pry,用 {0} 撬开箱盖
+sa_pried,箱盖松开了。
+sa_pry_noise,刺耳的摩擦声回荡开来。有什么东西听见了。
+sa_choice_leave_crate,不管它
+sa_room_pump,一台停转的水泵。没过脚踝的积水还在缓缓流动。
+sa_action_search,搜索房间
+sa_nothing,没什么值得带走的东西。
+sa_room_drain,地面向下塌落，通往一条宽阔的排水道。
+sa_room_store,腐朽的货架歪斜着架在一块干燥的地面上。
+sa_room_office,隧道尽头是一间亮着灯的办公室。里面有人。
+sa_foreman_down,办公室里恢复了安静。
+sa_foreman_grudge,工头记得你的脸。你打败过他的次数：{0}。
+sa_action_claim,拿走藏货
+sa_info_claim,工头一直守着的东西

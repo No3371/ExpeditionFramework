@@ -1,0 +1,44 @@
+# The Night Market, Simplified Chinese (zh). Same keys as en.csv, same {n} placeholders.
+sm_area_title,夜市
+sm_heat_up,不少目光朝你转了过来。警戒度：{0}。
+sm_action_listen,听听动静
+sm_listen,物价又涨了。有人提起垃圾箱旁边有个销赃贩。
+sm_status_spotted,被盯上
+sm_intent_whistle,准备吹哨示警
+sm_tell_whistle,{0} 把两根手指放到了嘴边。
+sm_cart_fence,销赃贩
+sm_enemy_lookout,放哨人
+sm_action_hush,封口
+sm_info_hush,亮出 {0} 震慑对方
+sm_info_heat_high,整个夜市都在盯着你。
+sm_event_fence,一个销赃贩倚在装满别人东西的购物车旁。
+sm_choice_trade,交易
+sm_info_trade,今日加价：{0}
+sm_deal_note,第 {0} 天的一笔买卖
+sm_choice_haggle,讨价还价
+sm_info_haggle,{0}% 几率压低价格
+sm_haggle_won,对方勉强让了点价。
+sm_choice_walk,转身离开
+sm_walked,你没再理会销赃贩。
+sm_room_stalls,防水布和板条箱林立。每个摊位都配了放哨人。
+sm_room_alley,摊位后面的一条暗巷。
+sm_alley_empty,今晚这里没人。
+sm_room_gate,出口大门。守卫正朝另一边张望。
+sm_action_slip_out,悄悄溜走
+sm_info_slip_out,带着手头的东西离开
+sm_confirm_heat,所有人都看见你了。还是要走吗？
+sm_confirm_yes,离开
+sm_confirm_no,留下
+sm_greet_back,第 {0} 次光顾。摊主们还记得{1}。
+sm_rep_log,黑市听说了你做的买卖（{0}）
+sm_found,顺手收起：{0}
+sm_intel_fence_title,销赃贩今晚在场
+sm_intel_fence_desc,来过 {0} 次之后，摊主们就会告诉你销赃贩什么时候在。
+sm_need_weapon,你需要一件武器。
+sm_card_missing,{0}（需要：{1}）
+sm_hud_hp,生命 {0} {1}/{2}
+sm_hud_heat,警戒度：{0}
+sm_hud_enemy,{0}：{1}/{2}
+sm_hud_clear,没人盯着你。
+sm_room_contact,一个你认识的车库伙计朝你招了招手。
+sm_contact_heard,“听说你把那个钱箱洗劫一空。我听说已经有 {0} 次了。”
