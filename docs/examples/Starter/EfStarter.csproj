@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Builds EfStarter.dll and installs the pack to the game's Mods folder.
+       Expects this folder at Probably Stolen/Modding/EfStarter; from anywhere else pass both paths:
+       dotnet build -c Release -p:GameManaged="<game>\Probably Stolen_Data\Managed\\" -p:InstallDir="<game>\Mods\EfStarter\\" -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <GameManaged>..\..\Probably Stolen_Data\Managed\</GameManaged>
+    <InstallDir>..\..\Mods\EfStarter\</InstallDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManaged)Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="CheckGame" BeforeTargets="ResolveAssemblyReferences" Condition="!Exists('$(GameManaged)Assembly-CSharp.dll')">
+    <Error Text="Can't find $(GameManaged)Assembly-CSharp.dll. Put this folder at Probably Stolen/Modding/YOUR_PACK, or pass -p:GameManaged=..." />
+  </Target>
+
+  <Target Name="InstallMod" AfterTargets="Build">
+    <ItemGroup>
+      <Localization Include="Localization\*.csv" />
+      <Packs Include="ExpeditionFramework\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="$(TargetPath);manifest.xml" DestinationFolder="$(InstallDir)" />
+    <Copy SourceFiles="@(Localization)" DestinationFolder="$(InstallDir)Localization\" />
+    <Copy SourceFiles="@(Packs)" DestinationFolder="$(InstallDir)ExpeditionFramework\" />
+  </Target>
+
+</Project>
