@@ -17,7 +17,7 @@ another file, or in another pack, whatever the order.
 | `rooms` | Rooms a layout is built from | [Rooms and events](rooms-events.md) |
 | `events` | Scenes with choices, started by effects | [Rooms and events](rooms-events.md) |
 | `encounters` | Groups of enemies to fight | [Combat](combat.md) |
-| `enemies` | Foes, their stats, behavior and weak points | [Combat](combat.md) |
+| `enemies` | Foes, their stats, behavior and the actions that work on them | [Combat](combat.md) |
 | `intents` | What an enemy is about to do | [Combat](combat.md) |
 | `behaviors` | Weighted intent lists enemies can share | [Combat](combat.md) |
 | `statuses` | Effects that last turns or rooms | [Combat](combat.md#statuses) |
@@ -55,8 +55,8 @@ Loading reports two kinds of message, each with its location, such as
   on a kind that ignores them, a `memory.` name the pack reads but never writes, or reads another pack's memory when
   that pack isn't loaded.
 
-In the game both go to the mod log, warnings prefixed `warning:`. [ef-sim lint](testing.md#lint) prints them as
-`ERROR` and `WARN`; `--strict` fails on warnings too.
+In the game both go to the game's log ([where it is](getting-started.md#6-install)), warnings prefixed `warning:`.
+[ef-sim lint](testing.md#lint) prints them as `ERROR` and `WARN`; `--strict` fails on warnings too.
 
 ## Include
 

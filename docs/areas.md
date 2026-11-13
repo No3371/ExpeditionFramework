@@ -23,6 +23,9 @@ actions are available, and how the area looks on the map and on screen.
 
 ## Fields
 
+A working area needs only `title`, `player` and `layout`, and most list `kits`. Everything else is optional; the
+sections after [Button groups](#button-groups) cover the fields most areas never use.
+
 | Field | Type | What it does |
 |---|---|---|
 | `title` | text key | The area's name on the map and on its panel. Required |
@@ -130,7 +133,17 @@ show an area when **either** of two things is true, leave out `unlocked_by` and 
 A run counts as a clear when the player leaves after it ended `cleared`, or with `run.cleared` above 0. Set
 `run.cleared` when the player has done what the area is for but can still walk on.
 
-## Packing
+## Button groups
+
+Every action has a `group` (default `move`). The actions window shows each group under a heading, in the order
+`groups` lists them; groups it doesn't list come after. A group's heading is the text `ef_group_NAME`, or the group's
+name if there is no such text. The framework provides `explore`, `attack`, `tactics`, `supplies` and `move`.
+
+## Less common fields
+
+Packing requirements, a custom HUD, replaced framework texts and luck. Skip these until an area needs one.
+
+### Packing
 
 `packing` stops the player setting out without what the area needs. While anything is missing the map card says so and
 the area can't be chosen.
@@ -152,10 +165,11 @@ the area can't be chosen.
 What counts as packed is the chosen backpack's contents plus the two hand slots.
 [`expect.packing`](testing.md#packing) in `sim.json` tests this without the game.
 
-## HUD
+### HUD
 
 The info window shows the player's state and the enemies. Without `hud` it shows health, the turn in a fight, the
-player's statuses and one line per enemy. With `hud` the area decides:
+player's statuses and one line per enemy. With `hud` the area decides, and none of that is kept: the window shows
+only the rows you list and your own enemy line, so `enemies.line` is required.
 
 ```json
 "hud": {
@@ -174,7 +188,7 @@ player's statuses and one line per enemy. With `hud` the area decides:
 |---|---|
 | `title` | A [line](text.md#lines) for the window title. Without it: the framework's `ef_panel_title` (area name, room, room count) |
 | `rows` | Each row: `parts` (lines shown side by side), an optional `when`, or `"separator": true` for a divider |
-| `enemies.line` | One line per enemy present, with the enemy as `target`. Each enemy's intent is shown under its line, and the focused one is marked |
+| `enemies.line` | **Required.** One line per enemy present, with the enemy as `target`. Each enemy's intent is shown under its line, and the focused one is marked |
 | `enemies.none` | Shown when no enemy is present |
 | `enemies.pending` | Used instead of `line` in the scenes listed in `pending_scenes` (by default the same as `line`) |
 | `enemies.pending_scenes` | Scene names where enemies are present but not yet fighting, such as a standoff event |
@@ -190,13 +204,7 @@ matching carried item, with that item as `item`:
 
 Like button labels, the HUD is drawn [without rolling](actions.md#drawn-without-rolling).
 
-## Button groups
-
-Every action has a `group` (default `move`). The actions window shows each group under a heading, in the order
-`groups` lists them; groups it doesn't list come after. A group's heading is the text `ef_group_NAME`, or the group's
-name if there is no such text. The framework provides `explore`, `attack`, `tactics`, `supplies` and `move`.
-
-## Framework texts
+### Framework texts
 
 `texts` replaces the framework's own strings for this area, mapping a framework key to one of your text keys:
 
@@ -210,7 +218,7 @@ when an area provides them:
 - `ef_leave_OUTCOME`: the label of the button that ends a run with that outcome (default `ef_leave`).
 - `ef_roll_dN`: how a roll of an N-sided die is shown in the log (default `ef_roll`).
 
-## Luck
+### Luck
 
 `luck` lets the player's luck bend d20 checks and rolls:
 

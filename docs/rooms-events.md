@@ -4,6 +4,9 @@
 
 A room is one step of a run. The [layout](areas.md#layout) decides which rooms a run visits.
 
+The buttons a room offers are **actions**. In the JSON a room's are listed under `interactions` and an event's under
+`choices`, but they are the same thing with the same fields, described in [Actions](actions.md), the next page.
+
 ```json
 "rooms": {
   "pump_room": {
@@ -22,7 +25,7 @@ A room is one step of a run. The [layout](areas.md#layout) decides which rooms a
 |---|---|
 | `text` | A [line](text.md#lines) logged as a heading when the player enters |
 | `enter` | [Effects](effects.md) run on entering, after the text |
-| `interactions` | [Actions](actions.md) offered while in this room. Default scene: `room` |
+| `interactions` | [Actions](actions.md) (buttons) offered while in this room. Default scene: `room` |
 | `on` | [Hooks](run-flow.md#hooks) that fire while the player is in this room |
 | `tags` | Names a layout slot or effect can pick the room by |
 | `weight` | How likely it is to be picked, against the other candidates. Default 1 |

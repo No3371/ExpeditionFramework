@@ -72,9 +72,10 @@ whoever is present into a fight; `prepare` runs once per enemy, with it as `targ
 The engine reads only a few stats itself: `hp`, `max_hp`, and `armor` (taken off damage). `focused` is 1 on the focused
 enemy. Everything else (`attack`, `dodge`, `accuracy`) means what your data makes it mean.
 
-### Weak points
+### Actions on an enemy
 
-There is no weak-point field. An action on an enemy says what can be done to it, with what, and what happens:
+An enemy has no weak-point field. Instead, an action in the enemy's `interactions` says what can be done to it, with
+what, and what happens:
 
 ```json
 {

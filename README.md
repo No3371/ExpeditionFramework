@@ -34,6 +34,8 @@ MyPack/
   Localization/en.csv
 ```
 
+The [Starter example](docs/examples/Starter) has a ready project that builds the DLL and installs the pack.
+
 ```json
 {
   "encounters": {
@@ -54,14 +56,15 @@ MyPack/
       "title": "gs_area_title",
       "player": { "hp": 20, "dodge": 10 },
       "kits": ["expedition_framework:explore", "expedition_framework:melee", "expedition_framework:medicine"],
-      "layout": [ { "tag": "garage", "count": 2 }, { "room": "office" } ]
+      "layout": [ { "tag": "garage" }, { "room": "office" } ]
     }
   }
 }
 ```
 
-This is part of the [Starter example](docs/examples/Starter), which also defines the `squatter` enemy, an event and
-the text. [Getting started](docs/getting-started.md) builds it step by step.
+This is a cut-down copy of the Starter's `main.json`: a run visits the workshop, with a fight, then the office. The
+full Starter also defines the `squatter` enemy, a second room with an event, and the text.
+[Getting started](docs/getting-started.md) builds it step by step.
 
 Check a pack without the game:
 
@@ -75,8 +78,8 @@ Everything else is in [docs/](docs/README.md):
 
 - [Getting started](docs/getting-started.md), [Packs](docs/packs.md), [Areas](docs/areas.md),
   [How a run plays](docs/run-flow.md)
-- [Rooms and events](docs/rooms-events.md), [Combat](docs/combat.md), [Items, loot and trade](docs/items.md),
-  [Actions](docs/actions.md)
+- [Rooms and events](docs/rooms-events.md), [Actions](docs/actions.md), [Combat](docs/combat.md),
+  [Items, loot and trade](docs/items.md)
 - Reference: [Expressions](docs/expressions.md), [Effects](docs/effects.md), [Text](docs/text.md),
   [Memory](docs/memory.md), [Game reads and reputation](docs/game.md), [Intel cards](docs/intel.md)
 - [Testing with ef-sim](docs/testing.md), [C# API](docs/csharp-api.md)

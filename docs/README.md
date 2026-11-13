@@ -1,6 +1,7 @@
 # Expedition Framework documentation
 
-Start with [Getting started](getting-started.md): it builds a small working pack step by step.
+Start with [Getting started](getting-started.md): it builds a small working pack step by step. Then read the
+"Writing a pack" pages in order; the reference pages are for looking things up.
 
 ## Writing a pack
 
@@ -11,9 +12,9 @@ Start with [Getting started](getting-started.md): it builds a small working pack
 | [Areas](areas.md) | Areas, layouts, kits, pools, the map, packing, the HUD, button groups, luck |
 | [How a run plays](run-flow.md) | The order of everything in a run, fights, outcomes, hooks |
 | [Rooms and events](rooms-events.md) | Rooms, events, event scenes, scheduling |
+| [Actions](actions.md) | Buttons: scenes, targets, items, checks, confirm, the info panel |
 | [Combat](combat.md) | Encounters, enemies, intents, behaviors, statuses, focus, roles and lists |
 | [Items, loot and trade](items.md) | Item filters, item stats, reloading, loot tables, credits, trading, carrying things in hand |
-| [Actions](actions.md) | Buttons: scenes, targets, items, checks, confirm, the info panel |
 
 ## Reference
 
@@ -39,7 +40,7 @@ Start with [Getting started](getting-started.md): it builds a small working pack
 Both examples load cleanly with `ef-sim lint --strict` and pass `ef-sim run`.
 
 - [examples/Starter](examples/Starter): the pack from [Getting started](getting-started.md). One area, three rooms, a
-  fight, an event.
+  fight, an event, and the small C# project that builds the pack's DLL and installs it. Copy it to start your own.
 - [examples/Showcase](examples/Showcase): most features in one area: shared effects and values, templates, an enemy
   action with an info panel, an intent, a trader, a haggling check, pack memory, a cross-pack read, game reads,
   reputation, intel, packing, a custom HUD, and a `sim.json` with a bot, memory, packing, loot and bridge settings.

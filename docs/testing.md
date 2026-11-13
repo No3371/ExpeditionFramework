@@ -3,7 +3,9 @@
 `ef-sim` checks and plays a pack without the game. It loads the framework and your pack exactly as the game does, then
 either reports what is wrong (`lint`) or plays many runs with a bot against a stand-in for the game (`run`).
 
-Build it once from the framework's folder:
+`ef-sim` comes with the framework's source, in `tools/EfSim`, not with the installed mod. It needs the
+[.NET 8 SDK](https://dotnet.microsoft.com/download) but not the game. The commands on this page run from the
+framework's source folder, with the pack beside it as `../MyPack`. Build it once:
 
 ```bash
 dotnet build -c Release tools/EfSim
@@ -36,6 +38,10 @@ It also reports:
 |---|---|
 | `--strict` | Warnings fail too |
 | `--mod ID` | Counts mod `ID` as installed: `mod(ID)` reads 1, includes that require it load, and `memory.ID.NAME` reads aren't warned about. Repeatable |
+
+**What lint can't see.** Lint knows your pack, the framework and the text, but not the game's items. A misspelled
+game item id (`"item": "crowbarr"`) passes lint and `ef-sim run`, and in the game gives nothing. See
+[Item ids](items.md#item-ids).
 
 Lint loads no pack but the framework and yours. With `--mod`, files that need that mod are checked too, but against
 nothing from it. Lint a pack with and without each `--mod` it cares about.

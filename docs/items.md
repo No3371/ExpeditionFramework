@@ -3,6 +3,23 @@
 Items are the game's own. The framework reads what the player carries, lets packs add facts about items, and gives
 items back through loot and trade.
 
+## Item ids
+
+An item id such as `crowbar`, `bandage_item` or `cup_noodle` is the game's own name for an item. The framework doesn't
+keep a list of them, so **lint and `ef-sim` can't check them**: a misspelled id in a loot table, `give_item`, a filter
+or `item_stats` passes lint with no warning, and in the game gives or matches nothing; the framework
+doesn't report it.
+
+Places to find ids:
+
+- the framework's [main.json](../ExpeditionFramework/main.json) `item_stats`, which names the game's medicine, melee
+  weapons, guns and magazines;
+- the examples in these pages and in [examples/Showcase](examples/Showcase).
+
+Copy ids rather than typing them. To check them in the game, list them in the pack's
+[`debug_kit`](packs.md#debug-panel) and give yourself the kit from the game's debug panel: a wrong id is simply
+missing from what you get. A `#tag` is different: a tag no item can have is a warning.
+
 ## Item filters
 
 Wherever data names "which items" (`uses.select`, `carrying`, `packing.needs`, `for_items`) it takes a filter:
@@ -118,7 +135,7 @@ Each entry is an item id (weight 1), or an object with one of:
 
 | Key | Rolls |
 |---|---|
-| `item` | That game item id |
+| `item` | That game item id. Lint can't check it: see [Item ids](#item-ids) |
 | `loot` | Another loot table |
 | `table` | A loot table or group the game itself knows |
 

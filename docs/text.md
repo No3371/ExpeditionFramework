@@ -14,6 +14,10 @@ Localization/
 Each line is a key, a comma, and the text. Only the first comma splits, so the text may contain commas. Blank lines and
 lines starting with `#` are skipped.
 
+Write the text bare, without quotes. They are never needed, and the two readers disagree about them: the game removes
+one pair of quotes around the whole text, but `ef-sim` keeps them, so its output then differs from the game's. A `\n`
+in the text is a line break in the game.
+
 ```
 # The night market
 sm_area_title,Night Market

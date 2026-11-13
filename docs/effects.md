@@ -3,6 +3,16 @@
 An effect does something: logs a line, starts a fight, gives an item. Effects go in `do`, `enter`, `on` hooks, check
 outcomes and many other places. Every built-in is in [src/Core/Builtins.cs](../src/Core/Builtins.cs).
 
+Most packs get far with a handful:
+
+- `say` logs a line; `if` and `check` branch ([Control](#control), [Check](#check));
+- `set` and `add` change a number, such as `run.heat` or `memory.visits` ([Control](#control));
+- `fight` and `event` start a fight or an event; `next_room` and `leave` move on or end the run ([World](#world),
+  [Combat](#combat));
+- `give_loot`, `give_item` and `credits` reward the player ([Items](#items)).
+
+The rest of the page lists every effect, for when you need one of the others.
+
 ## Writing effects
 
 An effect is an object with one key, the effect's name. A list of effects runs in order, and stops if the run ends.

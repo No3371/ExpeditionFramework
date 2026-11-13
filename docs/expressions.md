@@ -4,6 +4,15 @@ Any field that takes a number takes an **expression**: a JSON number, `true`/`fa
 `"60 + item.accuracy * 5 - target.dodge"`. Any field that takes a yes/no takes a **condition**. The parser is
 [src/Core/Expr.cs](../src/Core/Expr.cs).
 
+What most packs use:
+
+- dice: `"2d6 + 1"` ([Operators](#operators));
+- reading a value: `player.hp`, `target.hp`, `item.sides`, `run.heat`, `memory.visits` ([Paths](#paths));
+- a comparison as a condition: `"run.heat >= 3 && player.hp > 5"` ([Conditions](#conditions));
+- counting what the player carries: `carried(crowbar)`, `carried(#medicine)` ([Functions](#functions)).
+
+The rest of the page is the full list.
+
 ## Numbers
 
 Everything is a whole number. `true` is 1 and `false` is 0; a condition is true when its value isn't 0. A JSON number

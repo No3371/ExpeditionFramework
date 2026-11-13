@@ -3,7 +3,7 @@
   "kits": {
     "knife": {
       "items": [
-        { "id": "kitchen_knife", "tags": ["melee", "in_hand"] },
+        { "id": "kitchen_knife", "tags": ["weapon", "melee", "in_hand"] },
         { "id": "bandage_item", "count": 2 }
       ]
     }
