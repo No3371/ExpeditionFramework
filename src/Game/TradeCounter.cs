@@ -64,19 +64,22 @@ namespace ExpeditionFramework.Game
             return true;
         }
 
-        /// <summary>Keeps the backdrop fitted to the counters, which settle a moment after opening. Call every frame while open.</summary>
+        /// <summary>Keeps the backdrop fitted to the counters and behind them, as they settle or get reordered after opening. Call every frame while open.</summary>
         public void Tick()
         {
             if (!IsOpen || backdrop == null) return;
             EmporiumEntry entry = EmporiumEntry.Instance;
-            Rect? front = WorldBounds(entry.frontInvWindow.rectTransform);
-            Rect? back = WorldBounds(entry.backInvWindow.rectTransform);
-            if (!(front is Rect f) || !(back is Rect b))
+            PixelWindow front = entry.frontInvWindow;
+            PixelWindow back = entry.backInvWindow;
+            Rect? frontArea = WorldBounds(front);
+            Rect? backArea = WorldBounds(back);
+            if (!(frontArea is Rect f) || !(backArea is Rect b))
             {
                 backdrop.gameObject.SetActive(false);
                 return;
             }
             backdrop.gameObject.SetActive(true);
+            KeepBehind(front.rectTransform, back.rectTransform);
             var parent = (RectTransform)backdrop.parent;
             float pad = BackdropPadding * parent.lossyScale.x;
             Rect area = Rect.MinMaxRect(Mathf.Min(f.xMin, b.xMin) - pad, Mathf.Min(f.yMin, b.yMin) - pad, Mathf.Max(f.xMax, b.xMax) + pad, Mathf.Max(f.yMax, b.yMax) + pad);
@@ -84,43 +87,44 @@ namespace ExpeditionFramework.Game
             backdrop.sizeDelta = new Vector2(area.width / parent.lossyScale.x, area.height / parent.lossyScale.y);
         }
 
-        // Sits on the counters' own canvas, just behind whichever counter is drawn first.
         private void CreateBackdrop(EmporiumEntry entry)
         {
-            RectTransform front = entry.frontInvWindow.rectTransform;
-            RectTransform back = entry.backInvWindow.rectTransform;
-            if (front.parent == null) return;
+            Transform parent = entry.frontInvWindow.rectTransform.parent;
+            if (parent == null) return;
             var panel = new GameObject("ExpeditionFramework.TradeBackdrop", typeof(RectTransform), typeof(Image), typeof(Outline));
             backdrop = (RectTransform)panel.transform;
-            backdrop.SetParent(front.parent, false);
+            backdrop.SetParent(parent, false);
             backdrop.anchorMin = backdrop.anchorMax = backdrop.pivot = new Vector2(0.5f, 0.5f);
             panel.GetComponent<Image>().color = BackdropColor;
             panel.GetComponent<Image>().raycastTarget = false;
             Outline edge = panel.GetComponent<Outline>();
             edge.effectColor = BackdropEdge;
             edge.effectDistance = new Vector2(2f, -2f);
-            int index = back.parent == front.parent ? Mathf.Min(front.GetSiblingIndex(), back.GetSiblingIndex()) : front.GetSiblingIndex();
-            backdrop.SetSiblingIndex(index);
             panel.SetActive(false);
             Tick();
         }
 
-        // A pixel window's own RectTransform has no size; its border and panels are children sized in pixels.
-        private static Rect? WorldBounds(RectTransform window)
+        // UI draws later siblings on top, so the backdrop stays on the front counter's parent, before both counters.
+        // Windows can be re-parented (docked) or reordered (brought to front) after opening, so this is checked every frame.
+        private void KeepBehind(RectTransform front, RectTransform back)
         {
-            if (window == null || !window.gameObject.activeInHierarchy) return null;
-            Rect? bounds = null;
-            var corners = new Vector3[4];
-            foreach (RectTransform part in window.GetComponentsInChildren<RectTransform>(false))
-            {
-                if (part == window || part.rect.width <= 0f || part.rect.height <= 0f) continue;
-                part.GetWorldCorners(corners);
-                Rect box = Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
-                bounds = bounds is Rect r
-                    ? Rect.MinMaxRect(Mathf.Min(r.xMin, box.xMin), Mathf.Min(r.yMin, box.yMin), Mathf.Max(r.xMax, box.xMax), Mathf.Max(r.yMax, box.yMax))
-                    : box;
-            }
-            return bounds;
+            Transform parent = front.parent;
+            if (parent == null) return;
+            if (backdrop.parent != parent) backdrop.SetParent(parent, false);
+            int target = back.parent == parent ? Mathf.Min(front.GetSiblingIndex(), back.GetSiblingIndex()) : front.GetSiblingIndex();
+            if (backdrop.GetSiblingIndex() > target) backdrop.SetSiblingIndex(target);
+        }
+
+        // A pixel window's own RectTransform has no size: its contents hang down and right from its pivot, over
+        // widthPixels by heightPixels, which is what the game itself lays the counters out with. Measuring the
+        // children instead picks up parts that reach well past the counter.
+        private static Rect? WorldBounds(PixelWindow window)
+        {
+            RectTransform node = window?.rectTransform;
+            if (node == null || !node.gameObject.activeInHierarchy || window.widthPixels <= 0 || window.heightPixels <= 0) return null;
+            Vector3 topLeft = node.TransformPoint(Vector3.zero);
+            Vector3 bottomRight = node.TransformPoint(new Vector3(window.widthPixels, -window.heightPixels, 0f));
+            return Rect.MinMaxRect(Mathf.Min(topLeft.x, bottomRight.x), Mathf.Min(topLeft.y, bottomRight.y), Mathf.Max(topLeft.x, bottomRight.x), Mathf.Max(topLeft.y, bottomRight.y));
         }
 
         /// <summary>Closes the counters: anything you own goes to the ground, everything else goes back on the cart.</summary>
