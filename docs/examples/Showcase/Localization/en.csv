@@ -41,4 +41,4 @@ sm_hud_heat,Heat: {0}
 sm_hud_enemy,{0}: {1}/{2}
 sm_hud_clear,Nobody is watching you.
 sm_room_contact,A garage hand you know waves you over.
-sm_contact_heard,"You're the one who emptied that cash box. {0} times, I hear."
+sm_contact_heard,"""You're the one who emptied that cash box. {0} times, I hear."""

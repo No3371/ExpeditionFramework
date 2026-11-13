@@ -50,8 +50,10 @@ internal static class Lint
             foreach (string file in Directory.GetFiles(localization, "*.csv").OrderBy(f => f))
             {
                 string name = Path.GetFileName(file);
-                if (name == "en.csv") continue;
-                notes.AddRange(ParityProblems(en, ReadCsv(file), name));
+                var quoted = new List<string>();
+                Dictionary<string, string> rows = ReadCsv(file, quoted);
+                foreach (string key in quoted) notes.Add(name + ": " + key + " is wrapped in quotes, which the game removes; drop them, or write \"\"\"text\"\"\" to show quote marks");
+                if (name != "en.csv") notes.AddRange(ParityProblems(en, rows, name));
             }
         }
 
@@ -99,18 +101,43 @@ internal static class Lint
         return content;
     }
 
-    // Key → text. Skips blank lines and lines starting with '#'; splits on the first comma, like the sims. A missing file has no rows.
-    internal static Dictionary<string, string> ReadCsv(string file)
+    // Key → text, read the way the game's ModLoader reads a Localization csv: skips blank lines and lines whose first
+    // non-space character is '#', splits on the first comma, trims the key and skips an empty one, and reads the value
+    // with ParseCsvValue. A later row wins. A missing file has no rows.
+    internal static Dictionary<string, string> ReadCsv(string file) => ReadCsv(file, null);
+
+    // As above; quoted gets each key whose value lost its quotes (see ParseCsvValue).
+    internal static Dictionary<string, string> ReadCsv(string file, List<string> quoted)
     {
         var rows = new Dictionary<string, string>();
         if (!File.Exists(file)) return rows;
         foreach (string line in File.ReadAllLines(file))
         {
-            if (line.Trim().Length == 0 || line.StartsWith("#")) continue;
+            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("#")) continue;
             int comma = line.IndexOf(',');
-            if (comma > 0) rows[line.Substring(0, comma)] = line.Substring(comma + 1);
+            if (comma < 0) continue;
+            string key = line.Substring(0, comma).Trim();
+            if (key.Length == 0) continue;
+            rows[key] = ParseCsvValue(line.Substring(comma + 1), out bool wasQuoted);
+            if (wasQuoted) quoted?.Add(key);
         }
         return rows;
+    }
+
+    // The game's ModLoader.ParseCsvValue: trims, removes one pair of surrounding quotes and turns "" into " inside them,
+    // then turns \n into a line break. quoted: the value was wrapped in quotes with no "" inside, so the game shows
+    // none of them; usually the author meant them as dialogue.
+    internal static string ParseCsvValue(string raw, out bool quoted)
+    {
+        string text = raw.Trim();
+        quoted = false;
+        if (text.Length >= 2 && text.StartsWith("\"") && text.EndsWith("\""))
+        {
+            text = text.Substring(1, text.Length - 2);
+            quoted = !text.Contains("\"\"");
+            text = text.Replace("\"\"", "\"");
+        }
+        return text.Replace("\\n", "\n");
     }
 
     private static readonly Regex Placeholder = new Regex(@"\{\d+\}");
