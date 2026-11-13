@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Manifest>
+  <ID>ef_showcase</ID>
+  <Name>Expedition Showcase: The Night Market</Name>
+  <Author>you</Author>
+  <ModVersion>0.1.0</ModVersion>
+  <Description>A feature tour for the Expedition Framework docs: memory, game reads, reputation, intel, trade and the info panel.</Description>
+  <GameVersions>
+    <Version>0.46</Version>
+  </GameVersions>
+  <Prerequisites>
+    <Mod>expedition_framework</Mod>
+  </Prerequisites>
+  <Assemblies>
+    <Assembly>EfShowcase.dll</Assembly>
+  </Assemblies>
+  <Capabilities />
+</Manifest>

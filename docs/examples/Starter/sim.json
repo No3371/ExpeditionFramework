@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kits": {
+    "knife": {
+      "items": [
+        { "id": "kitchen_knife", "tags": ["melee", "in_hand"] },
+        { "id": "bandage_item", "count": 2 }
+      ]
+    }
+  },
+  "runs": [
+    { "area": "old_garage", "kit": "knife", "runs": 500 }
+  ],
+  "expect": {
+    "offered": ["press_on", "head_home", "strike", "heal", "open_toolbox", "leave_toolbox", "take_cashbox"]
+  }
+}

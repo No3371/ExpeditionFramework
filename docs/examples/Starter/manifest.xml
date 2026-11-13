@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Manifest>
+  <ID>ef_starter</ID>
+  <Name>Expedition Starter: The Old Garage</Name>
+  <Author>you</Author>
+  <ModVersion>0.1.0</ModVersion>
+  <Description>The smallest useful expedition pack, from the Expedition Framework docs.</Description>
+  <GameVersions>
+    <Version>0.46</Version>
+  </GameVersions>
+  <Prerequisites>
+    <Mod>expedition_framework</Mod>
+  </Prerequisites>
+  <Assemblies>
+    <Assembly>EfStarter.dll</Assembly>
+  </Assemblies>
+  <Capabilities />
+</Manifest>

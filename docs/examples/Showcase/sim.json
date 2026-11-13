@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "kits": {
+    "blade": {
+      "credits": 100,
+      "items": [
+        { "id": "kitchen_knife", "tags": ["weapon", "melee", "in_hand"] },
+        { "id": "bandage_item", "count": 2 }
+      ]
+    }
+  },
+  "bots": {
+    "careful": [
+      { "when": "player.hp * 2 <= player.max_hp", "pick": ["heal"] },
+      { "when": "val.scene.combat && val.intent_ends.whistle > 0", "pick": ["hush_lookout"] },
+      { "when": "val.scene.combat", "pick": ["strike", "punch"], "target": "weakest" },
+      { "when": "val.scene.event", "pick": ["haggle", "trade_fence", "walk_away"] },
+      { "pick": ["listen", "press_on", "slip_out"] }
+    ]
+  },
+  "runs": [
+    { "area": "night_market", "kit": "blade", "runs": 400 },
+    { "area": "night_market", "kit": "blade", "bot": "careful", "runs": 200,
+      "memory": { "start": { "visits": 3, "$last_deal": "a deal on day 9" }, "carry": true, "expect": { "visits": 203 } } }
+  ],
+  "expect": {
+    "offered": ["press_on", "head_home", "strike", "heal", "hush_lookout", "listen", "trade_fence", "haggle", "walk_away", "slip_out"],
+    "packing": [
+      { "area": "night_market", "bag": [ { "id": "kitchen_knife", "tags": ["weapon", "melee"] } ], "missing": [] },
+      { "area": "night_market", "bag": [], "missing": ["You need a weapon."] },
+      { "area": "night_market", "missing": ["You need a weapon."] }
+    ],
+    "loot": [
+      { "area": "night_market", "tables": ["market_scraps"], "rolls": 500, "must_roll": ["box_cutter"], "never_prefix": "gsx_" }
+    ]
+  },
+  "bridge": {
+    "game": { "day": 12, "luck": 30, "rep.black_market": 25, "rep_exact.security": -4050 },
+    "trade": { "opens": true, "lose_cash_up_to": 20 }
+  }
+}

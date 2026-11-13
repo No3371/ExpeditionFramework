@@ -1,0 +1,223 @@
+// The Night Market: a feature tour used across the docs. Every snippet the docs quote from it loads.
+{
+  // Loaded only when the starter pack is installed and enabled, so its memory reads never warn.
+  "include": [ { "file": "with_starter.json", "requires": ["ef_starter"] } ],
+
+  "item_groups": { "sharp": ["kitchen_knife", "box_cutter", "combat_knife"] },
+  "item_stats": {
+    "#sharp": { "cut_bonus": 1 },
+    "box_cutter": { "cut_bonus": 2 }
+  },
+
+  "values": {
+    "haggle_dc": "12 + run.heat / 2",
+    "fence_markup": "game.rep.black_market >= 20 ? 10 : 30"
+  },
+
+  "templates": {
+    "market_room": { "tags": ["market"], "weight": 2 }
+  },
+
+  "effects": {
+    "raise_heat": {
+      "params": { "by": 1 },
+      "do": [
+        { "add": { "var": "run.heat", "value": "arg.by" } },
+        { "say": { "text": "sm_heat_up", "args": ["run.heat"], "tone": "bad" } }
+      ]
+    }
+  },
+
+  "interactions": {
+    "listen": { "id": "listen", "label": "sm_action_listen", "group": "explore", "once": true, "do": [ { "say": "sm_listen" } ] }
+  },
+
+  "statuses": {
+    "spotted": { "name": "sm_status_spotted", "rooms": 2, "stats": { "dodge": -5 } }
+  },
+
+  "intents": {
+    "whistle": {
+      "label": "sm_intent_whistle",
+      "tell": { "text": "sm_tell_whistle", "args": ["self.name"] },
+      "tone": "bad",
+      "interruptible": true,
+      "next": "expedition_framework:strike",
+      "do": [ { "raise_heat": { "by": 2 } }, { "status": { "to": "player", "id": "spotted" } } ]
+    }
+  },
+
+  "behaviors": {
+    "lookout": [
+      { "intent": "whistle", "weight": 40, "when": "run.heat < 4" },
+      { "intent": "expedition_framework:strike", "weight": 60 }
+    ]
+  },
+
+  "loot": {
+    "market_scraps": { "items": [ { "item": "cup_noodle", "weight": 3 }, { "item": "bandage_item", "weight": 2 }, "box_cutter" ] }
+  },
+
+  "carts": {
+    "fence_cart": { "name": "sm_cart_fence", "budget": "150 - val.fence_markup", "stock": [ { "loot": ["market_scraps"], "count": 3 } ] }
+  },
+
+  "enemies": {
+    "lookout": {
+      "name": "sm_enemy_lookout",
+      "tags": ["human"],
+      "stats": { "hp": 6, "attack": 1, "accuracy": 0, "dodge": 5 },
+      "behavior": "lookout",
+      "drops": "market_scraps",
+      "interactions": [
+        {
+          "id": "hush_lookout",
+          "label": "sm_action_hush",
+          "info": [
+            { "icon": "item" },
+            { "text": "sm_info_hush", "args": ["item.name"] },
+            { "when": "run.heat >= 3", "text": "sm_info_heat_high", "tone": "bad" }
+          ],
+          "group": "tactics",
+          "uses": { "select": "#sharp", "each": false },
+          "when": { "intent_interruptible": true },
+          "do": [ { "intent": { "who": "target", "id": "expedition_framework:staggered" } } ]
+        }
+      ],
+      "on": { "defeated": [ { "give_loot": { "drops_of": "self" } } ] }
+    }
+  },
+
+  "encounters": {
+    "lookouts": { "tags": ["market"], "enemies": ["lookout"] }
+  },
+
+  "events": {
+    "fence": {
+      "text": "sm_event_fence",
+      "enter": [ { "new_cart": "fence_cart" } ],
+      "choices": [
+        {
+          "id": "trade_fence",
+          "label": "sm_choice_trade",
+          "info": [ { "text": "sm_info_trade", "args": ["val.fence_markup"] } ],
+          "group": "supplies",
+          "do": [ { "trade": { "cart": "fence_cart", "on_close": [
+            { "if": { "when": "run.trade_cash < 0", "then": [
+              { "add": { "var": "run.deals", "value": 1 } },
+              { "set_text": { "var": "memory.$last_deal", "line": { "text": "sm_deal_note", "args": ["game.day"] } } }
+            ] } }
+          ] } } ]
+        },
+        {
+          "id": "haggle",
+          "label": "sm_choice_haggle",
+          "info": [ { "bar": "arg.percent", "max": 100, "label": { "text": "sm_info_haggle", "args": ["percent"] } } ],
+          "group": "supplies",
+          "once": true,
+          "stay": true,
+          "check": {
+            "die": 20, "mod": "player.charm", "dc": "val.haggle_dc",
+            "success": [ { "credits": "1d10" }, { "say": { "text": "sm_haggle_won", "tone": "good" } } ],
+            "failure": [ { "raise_heat": {} } ]
+          }
+        },
+        { "id": "walk_away", "label": "sm_choice_walk", "group": "move", "do": [ { "say": "sm_walked" } ] }
+      ]
+    }
+  },
+
+  "rooms": {
+    "stalls": {
+      "extends": "market_room",
+      "text": "sm_room_stalls",
+      "enter": [ { "fight": { "tag": "market" } } ],
+      "interactions": [ { "use": "listen" } ]
+    },
+    "back_alley": {
+      "extends": "market_room",
+      "text": "sm_room_alley",
+      "enter": [
+        { "if": {
+          "when": { "any": [ "intel(fence) > 0", { "chance": 50 } ] },
+          "then": [ { "event": "fence" } ],
+          "else": [ { "say": "sm_alley_empty" } ]
+        } }
+      ],
+      "interactions": [ { "use": "listen" } ]
+    },
+    "gate": {
+      "text": "sm_room_gate",
+      "interactions": [
+        {
+          "id": "slip_out",
+          "label": "sm_action_slip_out",
+          "info": [ "sm_info_slip_out" ],
+          "group": "move",
+          "confirm": { "when": "run.heat >= 3", "text": "sm_confirm_heat", "yes": "sm_confirm_yes", "no": "sm_confirm_no" },
+          "do": [ { "leave": "cleared" } ]
+        }
+      ]
+    }
+  },
+
+  "kits": {
+    "market_rules": {
+      "on": {
+        "run_start": [
+          { "add": { "var": "memory.visits", "value": 1 } },
+          { "if": { "when": "memory.visits > 1", "then": [
+            { "say": { "text": "sm_greet_back", "args": ["memory.visits", "memory.$last_deal"], "tone": "dim" } }
+          ] } }
+        ],
+        "run_end": [
+          { "reputation": { "faction": "black_market", "value_x100": "run.deals * 25",
+            "night_log": { "text": "sm_rep_log", "args": ["run.$rep"] } } },
+          { "if": { "when": "run.heat >= 4", "then": [ { "reputation": { "faction": "security", "value": -0.5 } } ] } }
+        ]
+      }
+    }
+  },
+
+  "areas": {
+    "night_market": {
+      "title": "sm_area_title",
+      "hidden_when": "game.rep.security <= -50",
+      "ambience": "dumping_ground",
+      "player": { "hp": 20, "dodge": 10, "charm": "game.rep_exact.black_market >= 1000 ? 2 : 0" },
+      "vars": { "heat": 0 },
+      "kits": ["expedition_framework:explore", "expedition_framework:melee", "expedition_framework:medicine", "market_rules"],
+      "groups": ["explore", "attack", "tactics", "supplies", "move"],
+      "luck": { "value": "game.luck" },
+      "texts": { "ef_found": "sm_found" },
+      "pools": { "fences": ["fence"] },
+      "intel": [
+        {
+          "id": "fence", "pool": "fences", "chance": 60, "tone": "good",
+          "when": "memory.visits > 0",
+          "title": "sm_intel_fence_title",
+          "description": { "text": "sm_intel_fence_desc", "args": ["memory.visits"] }
+        }
+      ],
+      "packing": {
+        "no_backpack": "sm_need_weapon",
+        "card": "sm_card_missing",
+        "needs": [ { "items": "#weapon", "missing": "sm_need_weapon" } ]
+      },
+      "hud": {
+        "rows": [
+          { "parts": [ { "text": "sm_hud_hp", "args": [ { "bar": ["player.hp", "player.max_hp"] }, "player.hp", "player.max_hp" ] } ] },
+          { "when": "run.heat > 0", "parts": [ { "text": "sm_hud_heat", "args": ["run.heat"], "tone": "bad" } ] }
+        ],
+        "enemies": {
+          "line": { "text": "sm_hud_enemy", "args": ["target.name", "target.hp", "target.max_hp"] },
+          "none": "sm_hud_clear"
+        }
+      },
+      "layout": [
+        { "tag": "market", "count": 2 },
+        { "room": "gate" }
+      ]
+    }
+  }
+}

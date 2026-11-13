@@ -1,0 +1,12 @@
+# The Old Garage, Simplified Chinese. Same keys as en.csv, same {n} placeholders.
+gs_area_title,废弃车库
+gs_enemy_squatter,占屋者
+gs_event_toolbox,工作台下有个生锈的工具箱。
+gs_choice_open,打开
+gs_choice_leave,不管它
+gs_toolbox_jammed,盖子纹丝不动。
+gs_left_alone,你没有碰它。
+gs_room_workshop,一间车间。有人在这里睡过。
+gs_room_pit,一个检修坑，半坑都是机油。
+gs_room_office,后面的办公室。钱箱还在桌上。
+gs_action_cashbox,拿走钱箱

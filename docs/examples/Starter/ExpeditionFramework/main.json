@@ -1,0 +1,64 @@
+// The Old Garage: two rooms picked at random, then the back office. Used by docs/getting-started.md.
+{
+  "loot": {
+    "garage_junk": { "items": [ { "item": "cup_noodle", "weight": 3 }, { "item": "bandage_item", "weight": 2 }, "crowbar" ] }
+  },
+
+  "enemies": {
+    "squatter": {
+      "name": "gs_enemy_squatter",
+      "tags": ["human"],
+      "stats": { "hp": 6, "attack": 1, "accuracy": 0, "dodge": 5 },
+      "behavior": "expedition_framework:brawler",
+      "on": { "defeated": [ { "give_loot": "garage_junk" } ] }
+    }
+  },
+
+  "encounters": {
+    "squatters": { "tags": ["garage"], "enemies": ["squatter"] }
+  },
+
+  "events": {
+    "toolbox": {
+      "tags": ["garage"],
+      "text": "gs_event_toolbox",
+      "choices": [
+        {
+          "id": "open_toolbox",
+          "label": "gs_choice_open",
+          "group": "explore",
+          "check": {
+            "chance": "70",
+            "success": [ { "give_loot": "garage_junk" } ],
+            "failure": [ { "say": { "text": "gs_toolbox_jammed", "tone": "bad" } } ]
+          }
+        },
+        { "id": "leave_toolbox", "label": "gs_choice_leave", "group": "move", "do": [ { "say": "gs_left_alone" } ] }
+      ]
+    }
+  },
+
+  "rooms": {
+    "workshop": { "tags": ["garage"], "text": "gs_room_workshop", "enter": [ { "fight": { "tag": "garage" } } ] },
+    "pit": { "tags": ["garage"], "text": "gs_room_pit", "enter": [ { "event": { "tag": "garage" } } ] },
+    "office": {
+      "text": "gs_room_office",
+      "interactions": [
+        { "id": "take_cashbox", "label": "gs_action_cashbox", "group": "explore", "once": true,
+          "do": [ { "credits": "2d10" }, { "add": { "var": "memory.cashboxes", "value": 1 } }, { "leave": "cleared" } ] }
+      ]
+    }
+  },
+
+  "areas": {
+    "old_garage": {
+      "title": "gs_area_title",
+      "player": { "hp": 20, "dodge": 10 },
+      "kits": ["expedition_framework:explore", "expedition_framework:melee", "expedition_framework:medicine"],
+      "layout": [
+        { "tag": "garage", "count": 2 },
+        { "room": "office" }
+      ]
+    }
+  }
+}

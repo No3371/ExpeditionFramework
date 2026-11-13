@@ -1,0 +1,11 @@
+gs_area_title,The Old Garage
+gs_enemy_squatter,Squatter
+gs_event_toolbox,A rusted toolbox sits under the workbench.
+gs_choice_open,Open it
+gs_choice_leave,Leave it
+gs_toolbox_jammed,The lid won't move.
+gs_left_alone,You leave it where it is.
+gs_room_workshop,A workshop. Someone has been sleeping here.
+gs_room_pit,An inspection pit, half full of oil.
+gs_room_office,The back office. The cash box is still on the desk.
+gs_action_cashbox,Take the cash box

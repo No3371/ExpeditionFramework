@@ -1,0 +1,44 @@
+# The Night Market. Each line is key,text; {0}, {1}... are the line's args in order.
+sm_area_title,The Night Market
+sm_heat_up,Heads turn your way. Heat: {0}.
+sm_action_listen,Listen
+sm_listen,Prices are up. Someone mentions the fence by the bins.
+sm_status_spotted,Spotted
+sm_intent_whistle,about to whistle
+sm_tell_whistle,{0} puts two fingers to their lips.
+sm_cart_fence,The fence
+sm_enemy_lookout,Lookout
+sm_action_hush,Hush
+sm_info_hush,Show them {0}
+sm_info_heat_high,The whole market is watching.
+sm_event_fence,A fence leans on a shopping cart full of other people's things.
+sm_choice_trade,Trade
+sm_info_trade,Markup today: {0}
+sm_deal_note,a deal on day {0}
+sm_choice_haggle,Haggle
+sm_info_haggle,{0}% to talk them down
+sm_haggle_won,They knock a little off.
+sm_choice_walk,Walk away
+sm_walked,You leave the fence to it.
+sm_room_stalls,Tarps and crates. Every stall has a lookout.
+sm_room_alley,A back alley behind the stalls.
+sm_alley_empty,Nobody here tonight.
+sm_room_gate,The gate out. The guard is looking the other way.
+sm_action_slip_out,Slip out
+sm_info_slip_out,Leave with what you have
+sm_confirm_heat,Everyone saw you. Leave anyway?
+sm_confirm_yes,Go
+sm_confirm_no,Stay
+sm_greet_back,Visit {0}. The stallholders remember {1}.
+sm_rep_log,The black market heard about your deals ({0})
+sm_found,Pocketed: {0}
+sm_intel_fence_title,The fence is in
+sm_intel_fence_desc,After {0} visits the stallholders tell you when the fence is around.
+sm_need_weapon,You need a weapon.
+sm_card_missing,{0} (needs: {1})
+sm_hud_hp,Health {0} {1}/{2}
+sm_hud_heat,Heat: {0}
+sm_hud_enemy,{0}: {1}/{2}
+sm_hud_clear,Nobody is watching you.
+sm_room_contact,A garage hand you know waves you over.
+sm_contact_heard,"You're the one who emptied that cash box. {0} times, I hear."

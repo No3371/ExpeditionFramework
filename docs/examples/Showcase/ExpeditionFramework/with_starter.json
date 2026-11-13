@@ -1,0 +1,14 @@
+// Loaded only alongside ef_starter (see "include" in main.json). Reads that pack's memory; it can't change it.
+{
+  "rooms": {
+    "garage_contact": {
+      "extends": "market_room",
+      "when": "memory.ef_starter.cashboxes > 0",
+      "text": "sm_room_contact",
+      "enter": [
+        { "say": { "text": "sm_contact_heard", "args": ["memory.ef_starter.cashboxes"] } },
+        { "give_loot": "market_scraps" }
+      ]
+    }
+  }
+}
