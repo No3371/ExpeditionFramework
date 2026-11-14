@@ -1,6 +1,6 @@
 # Weapon Facts From the Game (`cells`, `reach`, `breadth`, `price`, `kinds`, `purposes`) + Melee Measurement Command
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Author:** Claude Opus 5.5 (plan step)
 > **Parent:** User
 > **Source:** Direct request (human goal 2026-11-15: NER unified melee model, option "Opt1": EF reports raw melee facts, NER writes formulas in data)
