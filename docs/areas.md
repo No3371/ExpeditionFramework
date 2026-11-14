@@ -146,8 +146,8 @@ Packing requirements, a custom HUD, replaced framework texts and luck. Skip thes
 
 ### Packing
 
-`packing` stops the player setting out without what the area needs. While anything is missing the map card says so and
-the area can't be chosen.
+`packing` stops the player setting out without what the area needs. While anything is missing the map card's
+"unavailable" line says what, and the area can't be chosen. The card's title stays the area's title.
 
 ```json
 "packing": {
@@ -161,7 +161,7 @@ the area can't be chosen.
 |---|---|
 | `needs` | A list of `{ "items": filter, "missing": text key }`. Each need is met by one packed item that matches the [item filter](items.md#item-filters); otherwise its `missing` text is listed |
 | `no_backpack` | Text listed when the player carries neither a backpack nor anything [in hand](items.md#carrying-things-in-hand) |
-| `card` | Text for the map card while something is missing. `{0}` is the area's title, `{1}` the missing texts joined with commas |
+| `card` | Text for the map card's status line while something is missing. `{0}` is the game's "unavailable" label, `{1}` the missing texts joined with commas. Without `card` the line keeps the game's label |
 
 What counts as packed is the chosen backpack's contents plus the two hand slots.
 [`expect.packing`](testing.md#packing) in `sim.json` tests this without the game.

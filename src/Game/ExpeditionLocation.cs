@@ -92,10 +92,19 @@ namespace ExpeditionFramework.Game
         public override string GetTitle()
         {
             if (IsDiscovered()) intel.EnsureToday();
+            return GetPanelTitle();
+        }
+
+        /// <summary>
+        /// The map card's status line while something is missing, built from the game's own label; null when nothing is
+        /// missing or the area has no card text. The title stays plain because the game also shows it in the run summary.
+        /// </summary>
+        internal string MissingStatus(string unavailable)
+        {
+            if (area.Packing?.Card == null) return null;
             List<string> missing = Missing();
-            string title = GetPanelTitle();
-            if (missing.Count == 0 || area.Packing?.Card == null) return title;
-            return ModHelper.GetLocalized(area.Packing.Card.Pack, area.Packing.Card.Key, title, string.Join(", ", missing));
+            if (missing.Count == 0) return null;
+            return ModHelper.GetLocalized(area.Packing.Card.Pack, area.Packing.Card.Key, unavailable, string.Join(", ", missing));
         }
 
         public override bool IsDiscovered()
