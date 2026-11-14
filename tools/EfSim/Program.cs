@@ -21,7 +21,7 @@ internal static class Program
             case "run": return PackRun.Run(root, rest);
             default:
                 Console.WriteLine("usage: ef-sim lint <pack folder> [--mod <id>]... [--strict]");
-                Console.WriteLine("       ef-sim run <pack folder> [--runs <n>] [--digest]");
+                Console.WriteLine("       ef-sim run <pack folder> [--runs <n>] [--digest] [--tally]");
                 return 2;
         }
     }

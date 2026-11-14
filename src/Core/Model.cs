@@ -337,6 +337,11 @@ namespace ExpeditionFramework.Core
         public LuckRule Luck;
         public PackingDef Packing;
         public List<IntelSlot> Intel = new List<IntelSlot>();
+        /// <summary>
+        /// The most intel cards the area shows a day, across all its slots, checked on the map when the day is rolled. Null
+        /// means no limit.
+        /// </summary>
+        public Value IntelMax;
         public HudDef Hud;
         /// <summary>Framework text keys this area words its own way.</summary>
         public Dictionary<string, TextRef> Texts = new Dictionary<string, TextRef>();

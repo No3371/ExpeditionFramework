@@ -51,7 +51,7 @@ Exit codes: 0 clean, 1 on errors (or on warnings with `--strict`), 2 on bad argu
 ## Run
 
 ```bash
-dotnet run -c Release --no-build --project tools/EfSim -- run ../MyPack [--runs 200] [--digest]
+dotnet run -c Release --no-build --project tools/EfSim -- run ../MyPack [--runs 200] [--digest] [--tally]
 ```
 
 ```
@@ -78,6 +78,23 @@ id, with counts) and the ground pile in order. It leaves out run variables (`run
 variable without changing it. It also cannot see what the ef-sim's bridge does not model: the game's real inventory,
 item stats, sounds and anything else only the game shows. It reads the run and draws no random number, so a run plays
 the same with or without it.
+
+`--tally` adds, after everything else (the digest lines included), a table of the mean of each run variable listed in
+sim.json `tally`, per row, read when the run ends. It needs the `tally` key (names without `run.`, such as `"fights"`):
+
+```
+tally: mean of run.NAME at run end
+row      area               kit          bot        runs  fights credits_found
+runs[0]  night_market       blade        random      400    2.10         35.50
+```
+
+Each row carries the `runs[n]` index of its digest line, since labels repeat across rows, and the kit column widens to the
+longest kit label.
+
+A name that is 0 in every run of every row prints `WARN tally: run.NAME was 0 in every run`, usually a typo; it never
+changes the exit code. Tally reads variables and draws no random number, so `run` and `run --digest` stay exact prefixes of
+the same run with `--tally`. `--tally` without a `tally` list is a bad argument (exit 2). A malformed `tally` list
+(`run.` prefix, duplicates, empty) is a sim.json error for plain `run` too, flag or not.
 
 ### Proving a refactor
 
@@ -141,6 +158,7 @@ The [Showcase example's sim.json](examples/Showcase/sim.json), shortened:
 | `bots` | Named [bots](#bots) |
 | `expect` | `offered`, [`packing`](#packing), [`loot`](#loot) |
 | `bridge` | How the stand-in game behaves. [Below](#bridge) |
+| `tally` | Run variable names (without `run.`) that `--tally` averages |
 
 Unknown keys are errors, and numbers must be whole.
 
@@ -238,7 +256,7 @@ By default every run is a separate night on the bridge's game values with no int
 | `game` | `game.NAME` values for this row only, laid over `bridge.game` (same forms: whole number or `"coin"`). A row's `rep.F` or `rep_exact.F` replaces both spellings of that faction from the bridge |
 | `days` | `true`: the row's nights follow each other. `game.day` starts at the row's (or bridge's) `day`, default 0, and goes up 1 a night; reputation a night changes stays for the next. Pair with `memory.carry` for a save that lasts the same nights |
 | `intel` | `true`: each night rolls the area's intel as the map does, from its own random, against that night's game and memory, and the run sees it in `intel(id)` and `schedule` with `intel` |
-| `expect` | After the row's last night: `rep.FACTION` / `rep_exact.FACTION` (the reputation that night ended with) and `intel.SLOT` (how many nights the slot named anything; needs `"intel": true`). A whole number or `{ "min", "max" }` |
+| `expect` | After the row's last night: `rep.FACTION` / `rep_exact.FACTION` (the reputation that night ended with) and `intel.SLOT` (how many nights the slot named anything, counted after the area's `intel_max`; needs `"intel": true`). A whole number or `{ "min", "max" }` |
 
 Rows without these keys play as before: separate nights, the bridge's values, no intel. `--runs` changes how many
 nights a `days` row plays, so expect ranges, not end values that depend on the count.

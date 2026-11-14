@@ -1258,7 +1258,8 @@ namespace ExpeditionFramework.Core
         /// For each slot, the positions in its pool that were picked. <paramref name="roll"/> gives 1 to sides. A slot whose
         /// when doesn't hold at <paramref name="scope"/> picks nothing and rolls no dice, so adding a when to one slot doesn't
         /// shift what the others pick. The check runs here, once per rolled day, rather than when a card asks whether it can
-        /// start: that would run on every check and let a card appear or vanish mid-day as memory changes.
+        /// start: that would run on every check and let a card appear or vanish mid-day as memory changes. Then, if the area has
+        /// <c>intel_max</c>, keeps that many picks in slot order and drops the rest.
         /// </summary>
         public static Dictionary<string, List<int>> Roll(AreaDef area, Func<int, int> roll, IScope scope)
         {
@@ -1279,7 +1280,21 @@ namespace ExpeditionFramework.Core
                     picks.Add(at);
                 }
             }
+            if (area.IntelMax != null) Limit(area, result, Math.Max(0, area.IntelMax(scope)));
             return result;
+        }
+
+        // Every slot rolls first, as it would without a limit, so setting intel_max changes which cards show but not the
+        // dice the slots draw. Trimming slot by slot instead would make a later slot's picks depend on the limit. Earlier
+        // slots keep their cards first; within a slot, its first picks.
+        private static void Limit(AreaDef area, Dictionary<string, List<int>> result, int left)
+        {
+            foreach (IntelSlot slot in area.Intel)
+            {
+                List<int> picks = result[slot.Id];
+                if (picks.Count > left) picks.RemoveRange(left, picks.Count - left);
+                left -= picks.Count;
+            }
         }
 
         private static int HowMany(IntelSlot slot, Func<int, int> roll)

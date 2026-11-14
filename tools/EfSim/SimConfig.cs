@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using ExpeditionFramework.Core;
 
 internal sealed class SimItem { public string Id; public int Count = 1; public readonly List<string> Tags = new List<string>(); public readonly Dictionary<string, int> Props = new Dictionary<string, int>(); }
@@ -122,12 +123,16 @@ internal sealed class SimConfig
     public readonly List<SimPacking> Packing = new List<SimPacking>();
     public readonly List<SimLoot> Loot = new List<SimLoot>();
     public SimBridge Bridge = new SimBridge();
+    // Run variables `run --tally` averages per row, in the order sim.json lists them.
+    public readonly List<string> Tally = new List<string>();
+
+    private static readonly Regex VarName = new Regex("^[A-Za-z_][A-Za-z0-9_]*$");
 
     public static SimConfig Read(string file)
     {
         if (!File.Exists(file)) throw new FormatException("no sim.json in the pack folder");
         Dictionary<string, object> top = Obj(Json.Parse(File.ReadAllText(file)), "sim.json");
-        Only(top, "sim.json", "version", "kits", "bots", "runs", "expect", "bridge");
+        Only(top, "sim.json", "version", "kits", "bots", "runs", "expect", "bridge", "tally");
         if (Int(Need(top, "version", "sim.json"), "version") != 1) throw new FormatException("version must be 1");
         var config = new SimConfig();
         foreach (KeyValuePair<string, object> k in Obj(Need(top, "kits", "sim.json"), "kits"))
@@ -203,6 +208,18 @@ internal sealed class SimConfig
             }
         }
         if (top.TryGetValue("bridge", out object br)) config.Bridge = ReadBridge(br);
+        if (top.TryGetValue("tally", out object t))
+        {
+            List<object> names = List(t, "tally");
+            if (names.Count == 0) throw new FormatException("tally is empty");
+            for (int n = 0; n < names.Count; n++)
+            {
+                string name = Str(names[n], "tally[" + n + "]");
+                if (!VarName.IsMatch(name)) throw new FormatException("tally[" + n + "] must be a run variable name, without run.: " + name);
+                if (config.Tally.Contains(name)) throw new FormatException("tally: " + name + " is listed twice");
+                config.Tally.Add(name);
+            }
+        }
         return config;
     }
 

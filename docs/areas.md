@@ -43,6 +43,7 @@ sections after [Button groups](#button-groups) cover the fields most areas never
 | `art` | text | The sprite shown behind the panel. Default: the area's own id |
 | `packing` | object | What the player must bring. [Below](#packing) |
 | `intel` | list | Daily rumour cards on the map. [Intel cards](intel.md) |
+| `intel_max` | expression | The most intel cards a day across all slots. [Intel cards](intel.md#limiting-the-cards) |
 | `hud` | object | What the info window shows. [Below](#hud) |
 | `groups` | list of names | The order of button groups. [Below](#button-groups) |
 | `texts` | object | Replaces framework strings for this area. [Below](#framework-texts) |

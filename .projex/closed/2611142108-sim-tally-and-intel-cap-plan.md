@@ -1,6 +1,9 @@
 # Sim Tally + Area Intel Cap (`tally` / `--tally`, `intel_max`)
 
-> **Status:** In Progress
+> **Status:** Complete
+> **Completed:** 2026-11-14
+> **Walkthrough:** 2611142158-sim-tally-and-intel-cap-walkthrough.md
+> **Log:** 2611142108-sim-tally-and-intel-cap-log.md
 > **Author:** Claude Opus 5.5 (plan step)
 > **Parent:** 2611142022-night-set-pieces-proposal.md
 > **Source:** 2611142022-night-set-pieces-proposal.md (NER `.projex/`, Complete (Accepted), NER `0aa7964`): § Balance Target "How it's measured" item 1 (tally); § Open Questions "Sprint scope" ask (2) (intel cap); § Next Steps 1

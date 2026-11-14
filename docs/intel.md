@@ -53,6 +53,26 @@ Intel is rolled once per day, the first time the game asks for the area's cards 
 checked at that moment, on the map, where `run.` reads 0 but `memory.` and [`game.`](game.md) work. So what a run
 writes to memory tonight changes the cards from the next day.
 
+## Limiting the cards
+
+An area can cap how many cards it shows a day, across all its slots:
+
+```json
+"intel_max": 2
+```
+
+The value is a number or an expression. Every slot rolls as usual; when more cards come up than the limit, earlier slots in
+the `intel` list keep theirs first, and within a slot its first picks. Put the slots that matter most at the top. Below 0
+reads as 0. Without `intel_max` there is no limit. A template's `intel_max` can be overridden by an area that extends it.
+
+It is checked when the day is rolled, like `when`: `memory.` and [`game.`](game.md) work, `run.` reads 0. The day's cards
+come before any run, and a run's rooms are only laid out when the run begins, so `run.rooms` is not known yet. Write the
+number: half the rooms, rounded down, so a layout of 4 floors plus a final room makes 5 rooms and `"intel_max": 2`. A layout
+with `when` rooms or `unique` pools can lay out fewer rooms than the constant you counted. Lint warns when `intel_max`
+reads `run.`, and when an area has `intel_max` but no `intel`. Slot ids in one area must be distinct; lint reports a repeat.
+
+The limit drops picks, so `intel(id)`, `schedule` with `intel` and ef-sim's `intel.SLOT` see only the cards that show.
+
 ## Using intel in a run
 
 During a run, the area's slots hold the ids their cards named today:

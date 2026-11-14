@@ -45,6 +45,7 @@ internal static class Program
         TestReloadUsesWholeItems();
         TestMemory();
         TestMapMemory();
+        TestIntelMax();
         TestGameReads();
         TestReputation();
         TestMemoryWarnings();
@@ -704,6 +705,85 @@ internal static class Program
         var other = new MemoryStore();
         other.Set("b", "unlocked", 1);
         Check(area.HiddenWhen(new MapContext(area.Id, (p, k, a) => k, name => 0, other).Root), "another pack's memory doesn't unlock this area");
+    }
+
+    // intel_max trims the day's picks after every slot has rolled: earlier slots keep their cards first, the dice are the
+    // same as without the limit, and a limit below zero reads as zero.
+    private static void TestIntelMax()
+    {
+        string Pack(string intelMax) => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [ { ""set"": { ""var"": ""memory.cap"", ""value"": 1 } } ] }, ""r2"": { ""text"": ""k"" }, ""r3"": { ""text"": ""k"" } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ],
+            " + intelMax + @"
+            ""pools"": { ""leads"": [ ""r"", ""r2"", ""r3"" ] },
+            ""intel"": [
+              { ""id"": ""first"", ""pool"": ""leads"", ""chance"": 100, ""title"": ""k"", ""description"": ""k"" },
+              { ""id"": ""many"", ""pool"": ""leads"", ""counts"": [ 0, 0, 100 ], ""title"": ""k"", ""description"": ""k"" },
+              { ""id"": ""last"", ""pool"": ""leads"", ""chance"": 100, ""title"": ""k"", ""description"": ""k"" }
+            ] } }
+        }";
+        const string CapMemory = @"""intel_max"": ""memory.cap"",";
+        AreaDef Area(string packId, string intelMax, out string all)
+        {
+            var set = new PackSet(new Registry());
+            set.Add(packId, "ExpeditionFramework/main.json", f => Pack(intelMax));
+            Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
+            all = string.Join("; ", problems.Values.SelectMany(l => l).Concat(warnings.Values.SelectMany(l => l)));
+            bool clean = problems.Values.All(l => l.Count == 0) && warnings.Values.All(l => l.Count == 0);
+            return clean ? content.Areas[packId + ":a"] : null;
+        }
+
+        AreaDef area = Area("a", CapMemory, out string all);
+        Check(area != null, "an area with intel_max loads cleanly: " + all);
+        AreaDef bare = Area("b", "", out all);
+        Check(bare != null, "the same area without intel_max loads cleanly: " + all);
+        if (area == null || bare == null) return;
+
+        var store = new MemoryStore();
+        var map = new MapContext(area.Id, (p, k, a) => k, name => 0, store);
+        string Counts(AreaDef a, MapContext m)
+        {
+            Dictionary<string, List<int>> rolled = IntelRoller.Roll(a, n => 1, m.Root);
+            return rolled["first"].Count + "," + rolled["many"].Count + "," + rolled["last"].Count;
+        }
+
+        store.Set("a", "cap", 9);
+        Check(Counts(area, map) == "1,2,1", "a limit above the total changes nothing: " + Counts(area, map));
+        List<int> manyAtNine = IntelRoller.Roll(area, n => 1, map.Root)["many"];
+        store.Set("a", "cap", 2);
+        Check(Counts(area, map) == "1,1,0", "a limit of 2 keeps earlier slots first: " + Counts(area, map));
+        List<int> manyAtTwo = IntelRoller.Roll(area, n => 1, map.Root)["many"];
+        Check(manyAtTwo.Count == 1 && manyAtTwo[0] == manyAtNine[0], "within a slot, its first picks are kept");
+        store.Set("a", "cap", 0);
+        Dictionary<string, List<int>> none = IntelRoller.Roll(area, n => 1, map.Root);
+        Check(Counts(area, map) == "0,0,0" && none.ContainsKey("first") && none.ContainsKey("many") && none.ContainsKey("last"),
+            "a limit of 0 shows no card but every slot stays a key");
+        store.Set("a", "cap", -3);
+        Check(Counts(area, map) == "0,0,0", "a negative limit reads as 0: " + Counts(area, map));
+
+        var wide = new List<int>();
+        var narrow = new List<int>();
+        store.Set("a", "cap", 9);
+        IntelRoller.Roll(area, n => { wide.Add(n); return 1; }, map.Root);
+        store.Set("a", "cap", 1);
+        IntelRoller.Roll(area, n => { narrow.Add(n); return 1; }, map.Root);
+        Check(wide.Count > 0 && string.Join(",", wide) == string.Join(",", narrow),
+            "the limit draws no dice and leaves the slots' draws alone: " + string.Join(",", wide) + " vs " + string.Join(",", narrow));
+
+        var plain = new MapContext(bare.Id, (p, k, a) => k, name => 0, new MemoryStore());
+        Check(bare.IntelMax == null && Counts(bare, plain) == "1,2,1", "an area without intel_max has no limit: " + Counts(bare, plain));
+
+        const string NoIntel = @"{ ""rooms"": { ""r"": { ""text"": ""k"" } }, ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ], ""intel_max"": 1 } } }";
+        List<string> noIntel = WarningsIn(NoIntel);
+        Check(noIntel.Count == 1 && noIntel[0].Contains("intel_max"), "intel_max on an area without intel warns once: " + string.Join("; ", noIntel));
+        List<string> runRead = WarningsIn(Pack(@"""intel_max"": ""run.rooms / 2"","));
+        Check(runRead.Count == 1 && runRead[0].Contains("run.*"), "intel_max reading run. warns once: " + string.Join("; ", runRead));
+        List<string> cutOff = ProblemsIn(Pack(@"""intel_max"": ""1 +"","));
+        Check(cutOff.Count == 1 && cutOff[0].Contains(".intel_max"), "a cut-off intel_max is one problem at the key: " + string.Join("; ", cutOff));
+        List<string> memoryRead = WarningsIn(Pack(@"""intel_max"": ""memory.last_run.n"","));
+        Check(!memoryRead.Any(w => w.Contains("run.*")), "intel_max reading memory.last_run.n is not a run. read: " + string.Join("; ", memoryRead));
+        List<string> repeated = ProblemsIn(Pack("").Replace(@"""id"": ""last""", @"""id"": ""first"""));
+        Check(repeated.Count == 1 && repeated[0].Contains("repeats intel id") && repeated[0].Contains("intel[2].id"), "a repeated intel slot id is one problem at the second slot: " + string.Join("; ", repeated));
     }
 
     // game.rep.FACTION reads reputation whole and game.rep_exact.FACTION in hundredths; the reputation effect changes it

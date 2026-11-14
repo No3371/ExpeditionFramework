@@ -8,7 +8,7 @@ using ExpeditionFramework.Core;
 // ef-sim run: plays every row of the pack's sim.json and runs the checks every pack gets.
 internal static class PackRun
 {
-    private const string Usage = "usage: ef-sim run <pack folder> [--runs <n>] [--digest]";
+    private const string Usage = "usage: ef-sim run <pack folder> [--runs <n>] [--digest] [--tally]";
     private const int MaxSteps = 2000;
 
     public static int Run(string frameworkRoot, string[] args)
@@ -16,11 +16,12 @@ internal static class PackRun
         if (args.Length == 0 || args[0].StartsWith("--")) { Console.WriteLine(Usage); return 2; }
         string folder = Path.GetFullPath(args[0]);
         int runsOverride = 0;
-        bool digest = false;
+        bool digest = false, tally = false;
         for (int i = 1; i < args.Length; i++)
         {
             if (args[i] == "--runs" && i + 1 < args.Length && int.TryParse(args[i + 1], out int n) && n > 0) { runsOverride = n; i++; }
             else if (args[i] == "--digest") digest = true;
+            else if (args[i] == "--tally") tally = true;
             else { Console.WriteLine("unknown argument " + args[i]); Console.WriteLine(Usage); return 2; }
         }
         string id = Lint.ReadId(folder);
@@ -28,6 +29,7 @@ internal static class PackRun
         SimConfig config;
         try { config = SimConfig.Read(Path.Combine(folder, "sim.json")); }
         catch (FormatException e) { Console.WriteLine("ERROR sim.json: " + e.Message); return 2; }
+        if (tally && config.Tally.Count == 0) { Console.WriteLine("ERROR sim.json: --tally needs a \"tally\" list of run variable names"); return 2; }
 
         // Packs whose memory the rows seed or check stand in as installed, so the pack's reads of them load.
         var memoryPacks = new HashSet<string>(config.Rows.Where(row => row.Memory != null).SelectMany(row => row.Memory.Packs));
@@ -35,6 +37,7 @@ internal static class PackRun
             out List<string> errors, out List<string> notes, memoryPacks);
         foreach (string note in notes) Console.WriteLine("WARN " + note);
         var rowDigests = new List<string>();
+        var tallyLines = new List<string>();
         var failures = new List<string>(errors);          // load problems + text keys missing from en.csv
         if (content.Problems.Count == 0)
         {
@@ -73,13 +76,15 @@ internal static class PackRun
                 "area", "kit", "bot", "runs", "cleared", "knocked out", "extracted"));
             var memory = new List<string>();
             var digests = new List<string>();
+            var tallyRows = new List<(int Index, SimRow Row, int Runs, double[] Means)>();
             for (int r = 0; r < config.Rows.Count; r++)
             {
                 SimRow row = config.Rows[r];
                 config.Bots.TryGetValue(row.Bot, out RuleBot bot);
                 SimBridge settings = row.Game == null ? config.Bridge : config.Bridge.With(row.Game);
-                RowResult last = Play(content, id, areas[row.Area], row, row.Kits.Select(k => config.Kits[k]).ToList(), bot, settings, runsOverride > 0 ? runsOverride : row.Runs, localize, offered, problems, digest);
+                RowResult last = Play(content, id, areas[row.Area], row, row.Kits.Select(k => config.Kits[k]).ToList(), bot, settings, runsOverride > 0 ? runsOverride : row.Runs, localize, offered, problems, digest, tally ? config.Tally : null);
                 if (digest) digests.Add("digest runs[" + r + "] " + row.Area + " " + row.Kit + " " + row.Bot + " " + last.Digest);
+                if (tally) tallyRows.Add((r, row, runsOverride > 0 ? runsOverride : row.Runs, last.Tally));
                 if (row.Memory != null) memory.AddRange(row.Memory.Check(id, last.Memory, "runs[" + r + "]"));
                 memory.AddRange(CheckRow(row, last, "runs[" + r + "]"));
             }
@@ -96,11 +101,14 @@ internal static class PackRun
             failures.AddRange(loot);
             failures.AddRange(config.Offered.Where(o => !offered.Contains(o)).Select(o => "never offered: " + o));
             rowDigests = digests;
+            if (tally) tallyLines = TallyLines(config.Tally, tallyRows);
         }
         foreach (string failure in failures) Console.WriteLine("FAIL " + failure);
         Console.WriteLine("ef-sim " + id + ": " + (failures.Count == 0 ? "all checks passed" : failures.Count + " check(s) failed"));
         // After the summary, so the plain output stays an exact prefix of the digest output.
         foreach (string line in rowDigests) Console.WriteLine(line);
+        // After the digest lines too, so `run` and `run --digest` each stay an exact prefix of the same run with --tally.
+        foreach (string line in tallyLines) Console.WriteLine(line);
         return failures.Count == 0 ? 0 : 1;
     }
 
@@ -174,7 +182,7 @@ internal static class PackRun
     private static string AreaId(string id, string name) => name.Contains(':') ? name : id + ":" + name;
 
     // What a row leaves behind: the last night's memory and bridge, and how many nights each intel slot named anything.
-    private sealed class RowResult { public IMemory Memory; public KitBridge Bridge; public readonly Dictionary<string, int> IntelNights = new Dictionary<string, int>(); public string Digest; }
+    private sealed class RowResult { public IMemory Memory; public KitBridge Bridge; public readonly Dictionary<string, int> IntelNights = new Dictionary<string, int>(); public string Digest; public double[] Tally; }
 
     // runs[n].expect: end reputation and intel nights, compared as a memory expect is.
     private static IEnumerable<string> CheckRow(SimRow row, RowResult result, string at)
@@ -193,9 +201,10 @@ internal static class PackRun
 
     // Plays a row's runs and returns what its last night left and the intel tally.
     private static RowResult Play(Content content, string pack, AreaDef area, SimRow row, List<SimKit> kits, RuleBot bot, SimBridge settings, int runs,
-        Localizer localize, HashSet<string> offered, HashSet<string> problems, bool digest)
+        Localizer localize, HashSet<string> offered, HashSet<string> problems, bool digest, IReadOnlyList<string> tally)
     {
         var rowDigest = digest ? new RunDigest() : null;
+        double[] sums = tally != null ? new double[tally.Count] : null;
         var random = new Random(row.Seed);
         // Intel has its own random so a row that turns intel on doesn't shift the dice of its runs against a row that doesn't.
         Random intelRandom = row.Intel ? new Random(unchecked(row.Seed * 7919 + 1)) : null;
@@ -248,6 +257,8 @@ internal static class PackRun
                 problems.Add(where + ": a run threw " + e.GetType().Name + ": " + e.Message);
             }
             rowDigest?.Add(run, lines, bridge, memory);
+            // Get is a pure read, so the tally draws no dice. A run that threw still counts what it reached, as the outcome count below does.
+            if (sums != null) for (int i = 0; i < sums.Length; i++) sums[i] += run.Get(tally[i]);
             if (run.Outcome == "cleared" || run.Get("cleared") > 0) cleared++;
             if (run.Outcome == "knocked_out") knocked++;
             else if (run.Outcome != null) extracted++;
@@ -256,7 +267,32 @@ internal static class PackRun
             row.Area, row.Kit, row.Bot, runs, 100.0 * cleared / runs, 100.0 * knocked / runs, 100.0 * extracted / runs));
         result.Memory = memory;
         result.Digest = rowDigest?.Hex();
+        result.Tally = sums?.Select(s => s / runs).ToArray();
         return result;
+    }
+
+    // The tally block: one mean per named run variable per row, then a warning for each name that was 0 in every run of every
+    // row, which is usually a typo (fight for fights) rather than a count that really never moved. Each row carries the same
+    // runs[n] index as its digest line, because area/kit/bot labels repeat across rows; the kit column grows to the longest label.
+    private static List<string> TallyLines(IReadOnlyList<string> names, List<(int Index, SimRow Row, int Runs, double[] Means)> rows)
+    {
+        var lines = new List<string> { "tally: mean of run.NAME at run end" };
+        int[] width = names.Select(n => Math.Max(7, n.Length)).ToArray();
+        int kitWidth = rows.Select(r => r.Row.Kit.Length).Append("kit".Length).Max();
+        int indexWidth = rows.Select(r => ("runs[" + r.Index + "]").Length).Append("runs[n]".Length).Max();
+        string Line(string i, string a, string k, string b, string r, Func<int, string> cell) =>
+            string.Format(CultureInfo.InvariantCulture, "{0,-" + indexWidth + "} {1,-18} {2,-" + kitWidth + "} {3,-8} {4,6}", i, a, k, b, r)
+            + string.Concat(names.Select((n, j) => " " + cell(j).PadLeft(width[j])));
+        lines.Add(Line("row", "area", "kit", "bot", "runs", j => names[j]));
+        foreach ((int index, SimRow row, int runs, double[] means) in rows)
+        {
+            lines.Add(Line("runs[" + index + "]", row.Area, row.Kit, row.Bot, runs.ToString(CultureInfo.InvariantCulture), j => means[j].ToString("0.00", CultureInfo.InvariantCulture)));
+        }
+        for (int i = 0; i < names.Count; i++)
+        {
+            if (rows.All(r => r.Means[i] == 0)) lines.Add("WARN tally: run." + names[i] + " was 0 in every run");
+        }
+        return lines;
     }
 
     // Today's intel as the map would show it: each slot's picks as pool entries, its when read against this night's game

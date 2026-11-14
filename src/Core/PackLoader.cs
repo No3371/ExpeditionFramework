@@ -168,6 +168,7 @@ namespace ExpeditionFramework.Core
         // Text-parameter effects no call has compiled yet. Their body is only checked at a call site, so one nobody calls is unchecked.
         private readonly Dictionary<string, (string Pack, string At)> uncalledText = new Dictionary<string, (string Pack, string At)>();
         private static readonly Regex TextValue = new Regex("^[a-z0-9_]+$");
+        private static readonly Regex RunRead = new Regex("(?<![A-Za-z0-9_.$])run\\.");
         private static readonly Regex TextParamName = new Regex("^\\$[a-z0-9_]+$");
         private static readonly Regex BareTextArg = new Regex("(?<![a-z0-9_.])arg\\.\\$([a-z0-9_]*)");
         private static readonly Regex Placeholder = new Regex("\\{arg\\.\\$([^}]*)\\}");
@@ -1106,8 +1107,21 @@ namespace ExpeditionFramework.Core
             foreach (object e in List(n, "intel"))
             {
                 string path = at + ".intel[" + intelIndex++ + "]";
-                if (e is Node slot) d.Intel.Add(CompileIntel(slot, d, path));
+                if (e is Node slot)
+                {
+                    IntelSlot compiled = CompileIntel(slot, d, path);
+                    // Roll and Limit key results by slot id, so a repeated id would lose the first slot's picks and be limited twice.
+                    if (compiled.Id != null && d.Intel.Any(s => s.Id == compiled.Id)) Problem(path + ".id", "repeats intel id \"" + compiled.Id + "\"; each slot in an area needs its own");
+                    d.Intel.Add(compiled);
+                }
                 else Problem(path, "must be an object");
+            }
+            if (n.TryGetValue("intel_max", out object intelMax))
+            {
+                d.IntelMax = ValueOf(intelMax, d.Pack, at + ".intel_max");
+                if (d.Intel.Count == 0) Warn(at + ".intel_max", "limits intel cards, but the area has no intel");
+                // The day's cards are rolled on the map before any run, so run.* (run.rooms included) reads 0 there.
+                if (intelMax is string text && RunRead.IsMatch(text)) Warn(at + ".intel_max", "is checked on the map, where run.* reads 0; write the number");
             }
             if (n.TryGetValue("hud", out object hud) && hud is Node h) d.Hud = CompileHud(h, d.Pack, at + ".hud");
             d.Interactions = Interactions(n, "interactions", d.Pack, at, "room");

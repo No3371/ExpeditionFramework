@@ -49,7 +49,7 @@ namespace ExpeditionFramework.Core
             ["areas"] = Named.With(("title", Field.Text), ("unlocked_by", Field.Text), ("ambience", Field.Text), ("art", Field.Text),
                 ("hidden_when", Field.Any), ("player", Field.Any), ("vars", Field.Any), ("pools", Field.Any), ("entrance", Field.Text),
                 ("kits", Field.Texts), ("groups", Field.Texts), ("luck", Field.Any), ("texts", Field.Any), ("packing", Field.Any),
-                ("intel", Field.Any), ("hud", Field.Any), ("interactions", Field.Any), ("on", Field.Any), ("layout", Field.Any)),
+                ("intel", Field.Any), ("intel_max", Field.Any), ("hud", Field.Any), ("interactions", Field.Any), ("on", Field.Any), ("layout", Field.Any)),
         };
 
         public static readonly Shape LootEntry = new Shape(("item", Field.Text), ("loot", Field.Text), ("table", Field.Text), ("weight", Field.Number), ("when", Field.Any));

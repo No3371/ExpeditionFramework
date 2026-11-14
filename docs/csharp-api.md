@@ -132,4 +132,4 @@ write `memory.` for the pack whose data uses them, as data does.
 Code that runs the engine itself, as `tests/Sim` and `ef-sim` do, provides memory through `IBridge.Memory`
 (`MemoryStore` keeps it in memory). `MapContext` takes a store as its optional last argument for map-time reads; without
 one, memory reads 0 and "". `IntelRoller.Roll` takes the scope that intel slots' `when` is checked against, such as a
-`MapContext`'s `Root`.
+`MapContext`'s `Root`, and applies the area's `intel_max` after every slot has rolled.
