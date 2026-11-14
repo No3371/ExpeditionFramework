@@ -118,6 +118,8 @@ A decision is something the run is about to do, offered to interceptors first.
 | `loot` | `Text` (the rolled item), or cancel. Text `"table"` is the table | |
 | `intent` | `Text` (the enemy's next move from its behavior) | Self is the enemy |
 
+`damage` decisions don't carry the data's `hit` map; an effect a mod compiles from data (`spec.Value`) can read `hit.NAME` like any expression.
+
 `run.Decide` makes your own decisions, named `packid:name`, for other mods to intercept. Button odds show what the data
 says and don't run interceptors.
 

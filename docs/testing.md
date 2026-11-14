@@ -37,7 +37,7 @@ It also reports:
 | Option | What it does |
 |---|---|
 | `--strict` | Warnings fail too |
-| `--mod ID` | Counts mod `ID` as installed: `mod(ID)` reads 1, includes that require it load, and `memory.ID.NAME` reads aren't warned about. Repeatable |
+| `--mod ID` | Counts mod `ID` as installed: `mod(ID)` reads 1, includes that require it load, and `memory.ID.NAME` and `hit.NAME` reads aren't warned about. Repeatable |
 
 **What lint can't see.** Lint knows your pack, the framework and the text, but not the game's items. A misspelled
 game item id (`"item": "crowbarr"`) passes lint and `ef-sim run`, and in the game gives nothing; the framework logs

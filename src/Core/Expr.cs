@@ -17,17 +17,17 @@ namespace ExpeditionFramework.Core
         private readonly Func<string, Value> named;
         private readonly Func<string, bool> hasMod;
         private readonly string pack;
-        private readonly Action<string> memoryRead;
+        private readonly Action<string> pathRead;
         private int at;
         private string error;
 
-        private Expr(string text, Func<string, Value> named, Func<string, bool> hasMod, string pack, Action<string> memoryRead)
+        private Expr(string text, Func<string, Value> named, Func<string, bool> hasMod, string pack, Action<string> pathRead)
         {
             this.text = text;
             this.named = named;
             this.hasMod = hasMod;
             this.pack = pack;
-            this.memoryRead = memoryRead;
+            this.pathRead = pathRead;
         }
 
         /// <summary>
@@ -39,13 +39,13 @@ namespace ExpeditionFramework.Core
             Compile(text, out error, named, hasMod, pack, null);
 
         /// <summary>
-        /// As the public Compile, also handing <paramref name="memoryRead"/> each memory.NAME path the text reads. A separate
+        /// As the public Compile, also handing <paramref name="pathRead"/> each memory.NAME and hit.NAME path the text reads. A separate
         /// overload rather than another optional parameter: Expr is public, and a new parameter changes the method's binary
         /// signature for code compiled against it.
         /// </summary>
-        internal static Value Compile(string text, out string error, Func<string, Value> named, Func<string, bool> hasMod, string pack, Action<string> memoryRead)
+        internal static Value Compile(string text, out string error, Func<string, Value> named, Func<string, bool> hasMod, string pack, Action<string> pathRead)
         {
-            var parser = new Expr(text, named, hasMod, pack, memoryRead);
+            var parser = new Expr(text, named, hasMod, pack, pathRead);
             Value value = parser.Ternary();
             parser.Skip();
             if (parser.error == null && parser.at < text.Length) parser.error = "unexpected '" + text.Substring(parser.at) + "'";
@@ -127,6 +127,9 @@ namespace ExpeditionFramework.Core
         /// </summary>
         internal static bool IsPackMemory(string path) => path.StartsWith("memory.", StringComparison.Ordinal) && path.IndexOf('.', 7) > 7;
 
+        /// <summary>A hit name: a-z, 0-9 or _, not empty.</summary>
+        internal static bool IsPlainName(string name) => name.Length > 0 && name.All(ch => (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_');
+
         /// <summary>
         /// Reader for a path, or null if the head is unknown. With raw, entity stats leave out what statuses add.
         /// memory.NAME reads <paramref name="pack"/>'s memory, memory.PACK.NAME pack PACK's; both are unknown without a pack.
@@ -148,6 +151,12 @@ namespace ExpeditionFramework.Core
                 // A "$" arg is text, filled into the shared effect's JSON at load as {arg.$NAME}; read as a number it would be 0.
                 case "arg": return name.StartsWith("$", StringComparison.Ordinal) ? null : s => s.Arg(name);
                 case "game": return s => s.Run.Game(name);
+                case "hit":
+                    // hit values are numbers set by one damage; a "$" or dotted name could never be set, so it is no path at all.
+                    if (!IsPlainName(name)) return null;
+                    // Cast, not an IRun member: adding one would break every IRun outside this assembly. MapContext, the only
+                    // other IRun, deals no damage, so 0 is right for it.
+                    return s => (s.Run as ExpeditionRun)?.Hit(name) ?? 0;
                 case "val": return named?.Invoke(name);
                 case "role":
                     if (!Split(name, out string role, out string stat)) return null;
@@ -388,10 +397,10 @@ namespace ExpeditionFramework.Core
             Value reader = Reader(word, named, pack: pack);
             if (reader == null)
             {
-                Fail("unknown path '" + word + "' (paths start with self., target., player., item., with., run., memory., role., arg., game. or val.)");
+                Fail("unknown path '" + word + "' (paths start with self., target., player., item., with., run., memory., role., arg., game., hit. or val.)");
                 return s => 0;
             }
-            if (memoryRead != null && word.StartsWith("memory.", StringComparison.Ordinal)) memoryRead(word);
+            if (pathRead != null && (word.StartsWith("memory.", StringComparison.Ordinal) || word.StartsWith("hit.", StringComparison.Ordinal))) pathRead(word);
             return reader;
         }
 

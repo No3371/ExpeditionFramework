@@ -72,6 +72,10 @@ When the player presses a button:
 `damage` passes its amount to C# interceptors, takes off the target's `armor` unless `"armor": "ignore"`, and lowers
 `hp`. `run.last_damage` holds what was dealt, and `damaged` fires with the victim as self and the source as target.
 
+A `damage` can carry a `hit` map of names and expressions, worked out once when it starts, in written order (after `amount`). Everything that runs while that damage is in progress reads them as `hit.NAME`: C# interceptors' follow-ups, `damaged`, `defeated`, `knocked_out`, the `run_end` a knockout fires, and whatever those hooks set off, such as a `defeat` effect. A `damage` dealt inside one of those hooks has its own `hit` (0 for names it doesn't give), and the outer one comes back when it ends. Outside any damage `hit.NAME` is 0. Use it instead of a run variable set around the damage: that variable would leak into any damage dealt inside the hooks.
+
+`hit` names are shared by every loaded pack, so a kit can read a name another pack's `damage` sets. Loading warns about a `hit.` name that no `damage` in the loaded packs sets, such as `hit.sfot is read but no damage in a loaded pack sets it in its "hit", so it always reads 0`. It is usually a typo. `ef-sim lint --strict` fails on it, except under `--mod`, where the setter may be in a pack that isn't loaded, so it stays quiet.
+
 At 0 hp or below, an enemy is defeated (`defeated` fires) and the player is knocked out (`knocked_out` fires, then the
 run ends `knocked_out`). An enemy taken away with `remove` is gone without being defeated.
 

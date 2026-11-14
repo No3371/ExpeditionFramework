@@ -22,6 +22,27 @@ namespace ExpeditionFramework.Core
 
         public static Condition All(List<Condition> parts) => s => parts.All(p => p(s));
 
+        /// <summary>damage's "hit": name → expression, or null when absent. Names are a-z, 0-9 or _ so hit.NAME can read them.</summary>
+        private static List<KeyValuePair<string, Value>> HitMap(ISpec c)
+        {
+            if (!c.Has("hit")) return null;
+            var spec = (PackLoader.Spec)c;
+            if (!(spec.Args["hit"] is Dictionary<string, object> map))
+            {
+                spec.Loader.Problem(c.Path + ".hit", "\"hit\" must be an object of names and expressions, like { \"soft\": \"arg.soft\" }");
+                return null;
+            }
+            var result = new List<KeyValuePair<string, Value>>();
+            foreach (KeyValuePair<string, object> e in map)
+            {
+                string at = c.Path + ".hit." + e.Key;
+                if (!Expr.IsPlainName(e.Key)) { spec.Loader.Problem(at, "a hit name is a-z, 0-9 or _"); continue; }
+                spec.Loader.NoteHitSet(e.Key);
+                result.Add(new KeyValuePair<string, Value>(e.Key, spec.Loader.ValueOf(e.Value, c.PackId, at)));
+            }
+            return result;
+        }
+
         private static string Local(string id) => id.Substring(id.IndexOf(':') + 1);
 
         /// <summary>Who an effect applies to: self, target, player or role.NAME. Falls back to the given default.</summary>
@@ -611,7 +632,24 @@ namespace ExpeditionFramework.Core
                 Func<IScope, IEntity> to = Who(c, "to", "target");
                 Value amount = c.Value("amount", 0);
                 bool pierce = c.Text("armor", "") == "ignore";
-                return s => { IEntity t = to(s); if (t != null) s.Run.Damage(t, amount(s), s.Self, pierce); };
+                List<KeyValuePair<string, Value>> hit = HitMap(c);
+                return s =>
+                {
+                    IEntity t = to(s);
+                    if (t == null) return;
+                    int n = amount(s);
+                    if (hit == null) { s.Run.Damage(t, n, s.Self, pierce); return; }
+                    // The same test as the start of ExpeditionRun.Damage: a damage that does nothing fires no hook to read its
+                    // hit, so its values are not worked out either (a hit value that rolls dice would otherwise drift the RNG).
+                    if (!t.Active || s.Run.Over) return;
+                    // After amount and in written order, so a hit value that rolls dice always rolls in the same place.
+                    var values = new Dictionary<string, int>();
+                    foreach (KeyValuePair<string, Value> h in hit) values[h.Key] = h.Value(s);
+                    if (s.Run is ExpeditionRun run) run.Damage(t, n, s.Self, pierce, values);
+                    // The hit frames live on ExpeditionRun, not on IRun. The only other IRun is MapContext, whose Damage does
+                    // nothing, so dropping the hit loses nothing; a hit-aware host would need its own overload here.
+                    else s.Run.Damage(t, n, s.Self, pierce);
+                };
             };
             r.Effects["heal"] = c =>
             {

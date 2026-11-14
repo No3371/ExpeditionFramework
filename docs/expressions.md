@@ -54,6 +54,7 @@ A path reads a value. It starts with one of these heads:
 | `memory.PACK.NAME` | Another pack's memory, read-only |
 | `game.NAME` | The game's state: day, luck, reputation and more. [Game reads](game.md) |
 | `arg.NAME` | An argument of a [shared effect](packs.md#shared-pieces), or a value the framework passes (such as `arg.percent`). `arg.$NAME` is not a path: text parameters are written `{arg.$NAME}` and filled in when the pack loads (see [packs.md](packs.md#text-parameters)) |
+| `hit.NAME` | The `hit` value NAME of the damage in progress, 0 outside one. [Damage and defeat](run-flow.md#damage-and-defeat) |
 | `val.NAME` | A named value from the pack's `values` section |
 
 Who `self` and `target` are depends on where the expression is: see the hooks table in
@@ -62,7 +63,7 @@ Who `self` and `target` are depends on where the expression is: see the hooks ta
 A name nothing has set reads 0. A head not in this list is a problem. `game.rep.NAME` with a faction the game doesn't
 have is a problem too.
 
-`set` and `add` write to the same paths, except `memory.PACK.NAME`, `game.`, `arg.` and `val.`, and the run variables
+`set` and `add` write to the same paths, except `memory.PACK.NAME`, `game.`, `arg.`, `hit.` and `val.`, and the run variables
 the engine keeps. `set` and `add` on a stat change its base; `self.STAT` still adds the statuses on top.
 
 ### Named values

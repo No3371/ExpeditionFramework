@@ -378,24 +378,51 @@ namespace ExpeditionFramework.Core
             SetFocus(null);
         }
 
+        // One frame per damage in progress, innermost last; null for a damage without a hit map. A damage dealt inside a
+        // hook pushes its own frame, so it never sees the outer damage's names. A single run var would leak
+        // into that nested damage and be cleared under the outer one.
+        private readonly List<Dictionary<string, int>> hits = new List<Dictionary<string, int>>();
+
+        /// <summary>hit.NAME: the innermost damage in progress's value for name, or 0.</summary>
+        internal int Hit(string name)
+        {
+            Dictionary<string, int> top = hits.Count > 0 ? hits[hits.Count - 1] : null;
+            return top != null && top.TryGetValue(name, out int v) ? v : 0;
+        }
+
         public int Damage(IEntity target, int amount, IEntity source, bool pierce)
+        {
+            return Damage(target, amount, source, pierce, null);
+        }
+
+        /// <summary>As the public Damage, with the hit map the damage's hooks read as hit.NAME. Not on IRun: adding a member there would break every IRun outside this assembly.</summary>
+        internal int Damage(IEntity target, int amount, IEntity source, bool pierce, Dictionary<string, int> hit)
         {
             var victim = (Entity)target;
             if (!victim.Active || Over) return 0;
-            var decision = new Decision("damage", new Scope(this, source, victim, null), amount);
-            decision.Set("pierce", pierce ? 1 : 0);
-            Decide(decision);
-            if (decision.Cancelled || !victim.Active || Over)
+            hits.Add(hit);
+            try
             {
-                Set("last_damage", 0);
-                return 0;
+                var decision = new Decision("damage", new Scope(this, source, victim, null), amount);
+                decision.Set("pierce", pierce ? 1 : 0);
+                Decide(decision);
+                if (decision.Cancelled || !victim.Active || Over)
+                {
+                    Set("last_damage", 0);
+                    return 0;
+                }
+                int dealt = Math.Max(0, decision.Get("pierce") != 0 ? decision.Value : decision.Value - victim.Get("armor"));
+                victim.Set("hp", victim.Base("hp") - dealt);
+                Set("last_damage", dealt);
+                Emit("damaged", victim, source as Entity);
+                if (victim.Get("hp") <= 0) Defeat(victim, source as Entity);
+                return dealt;
             }
-            int dealt = Math.Max(0, decision.Get("pierce") != 0 ? decision.Value : decision.Value - victim.Get("armor"));
-            victim.Set("hp", victim.Base("hp") - dealt);
-            Set("last_damage", dealt);
-            Emit("damaged", victim, source as Entity);
-            if (victim.Get("hp") <= 0) Defeat(victim, source as Entity);
-            return dealt;
+            finally
+            {
+                // Without this, an exception escaping a hook would leave its frame on top and every later hook would read it.
+                hits.RemoveAt(hits.Count - 1);
+            }
         }
 
         // ---- Text ----

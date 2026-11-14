@@ -1,10 +1,13 @@
 # Damage Hit Context (`damage.hit` → `hit.NAME`)
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Author:** Claude Opus 5.5 (plan step)
 > **Parent:** 2611140500-authoring-language-text-params-hit-context-proposal.md
 > **Source:** 2611140500-authoring-language-text-params-hit-context-proposal.md (Accepted 2026-11-14; § C2 design sketch, § Balance-Proof Bar, Next Steps 3)
 > **Related Projex:** 2611140627-text-params-and-sim-digest-walkthrough.md (EF; digest + C1, proof method, `digest2` baseline) | 2611141353-ner-rep-book-settle-walkthrough.md (NER; last change proven identical) | 2611140152-ef-ner-next-steps-proposal.md (NER; § C origin) | 2611120227-runtime-hooks-expr-expansion-explore.md
+> **Log:** 2611141406-damage-hit-context-log.md
+> **Completed:** 2026-11-14
+> **Walkthrough:** 2611141641-damage-hit-context-walkthrough.md
 > **Worktree:** No — repo clean at plan time (`main` @ `9cd3750`), no `projex/*` branches, ~8 files. NER path and proof baselines are relative to the main checkout; worktree mode would break them.
 
 ---

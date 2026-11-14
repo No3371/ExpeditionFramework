@@ -144,6 +144,22 @@ namespace ExpeditionFramework.Core
         private readonly Dictionary<(string Reader, string Owner, string Name), (string At, string Path)> memoryReads =
             new Dictionary<(string Reader, string Owner, string Name), (string At, string Path)>();
         private readonly HashSet<(string Owner, string Name)> memoryWrites = new HashSet<(string Owner, string Name)>();
+        private readonly HashSet<string> hitSets = new HashSet<string>();
+        private readonly Dictionary<(string Reader, string Name), (string At, string Path)> hitReads = new Dictionary<(string, string), (string, string)>();
+
+        internal void NoteHitSet(string name) => hitSets.Add(name);
+
+        /// <summary>Notes a path an expression reads: memory paths for the read-never-written check, hit paths for the read-never-set one.</summary>
+        private void NoteRead(string pack, string path, string at)
+        {
+            if (path.StartsWith("hit.", StringComparison.Ordinal))
+            {
+                string name = path.Substring(4);
+                if (!hitReads.ContainsKey((pack, name))) hitReads[(pack, name)] = (at, path);
+                return;
+            }
+            NoteMemory(pack, path, at, write: false);
+        }
         private readonly HashSet<string> packs = new HashSet<string>();
         private readonly List<string> patchers = new List<string>();
         // Text-parameter shared effects compile at each call site, so an effect whose body calls itself through its text
@@ -706,6 +722,19 @@ namespace ExpeditionFramework.Core
             }
             memoryReads.Clear();
             memoryWrites.Clear();
+            foreach (KeyValuePair<(string Reader, string Name), (string At, string Path)> read in hitReads)
+            {
+                if (hitSets.Contains(read.Key.Name)) continue;
+                // Names are shared by every loaded pack, so with other packs named in OtherPacks (ef-sim lint --mod) the
+                // setter may be in one of them and the read can't be judged here. Warning anyway would make a kit that reads
+                // another pack's hit name fail lint --strict however it is run.
+                if (OtherPacks != null && OtherPacks.Count > 0) continue;
+                current = read.Key.Reader;
+                // A warning, as with memory: the pack still runs; the name just always reads 0.
+                Warn(read.Value.At, read.Value.Path + " is read but no damage in a loaded pack sets it in its \"hit\", so it always reads 0");
+            }
+            hitReads.Clear();
+            hitSets.Clear();
             foreach ((string pack, string at) in uncalledText.Values)
             {
                 current = pack;
@@ -1638,7 +1667,7 @@ namespace ExpeditionFramework.Core
             if (node is bool b) { int n = b ? 1 : 0; return s => n; }
             if (node is string text)
             {
-                Value value = Expr.Compile(text, out string error, name => NamedValue(pack, name, at), HasMod, pack, path => NoteMemory(pack, path, at, write: false));
+                Value value = Expr.Compile(text, out string error, name => NamedValue(pack, name, at), HasMod, pack, path => NoteRead(pack, path, at));
                 if (error != null)
                 {
                     Problem(at, error);

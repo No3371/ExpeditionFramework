@@ -121,7 +121,7 @@ Every roll is noted in the log. On a button, `chance` and `die` checks show thei
 | `{ "fight": ... }` | Starts a fight. [Encounters](combat.md#encounters) |
 | `{ "end_fight": { "won": 1 } }` | Ends the fight, won (default) or not |
 | `{ "enemy_turn": true }` | Gives the enemies a turn now |
-| `{ "damage": { "to": "target", "amount": "1d6", "armor": "ignore" } }` | Deals damage to `to` (default `target`), less its `armor` unless `"armor": "ignore"`. [Damage and defeat](run-flow.md#damage-and-defeat) |
+| `{ "damage": { "to": "target", "amount": "1d6", "armor": "ignore", "hit": { "soft": 1 } } }` | Deals damage to `to` (default `target`), less its `armor` unless `"armor": "ignore"`. `hit` names numbers (name `a-z`, `0-9` or `_`, value an expression) that the hooks this damage sets off can read as `hit.NAME`. [Damage and defeat](run-flow.md#damage-and-defeat) |
 | `{ "heal": { "to": "player", "amount": "1d4" } }` | Restores hp, up to `max_hp`, to `to` (default `player`). Sets `run.healed` |
 | `{ "status": { "to": "target", "id": "blinded", "turns": 2, "rooms": 1 } }` | Gives a status. `turns` and `rooms` override its own lengths |
 | `{ "clear_status": { "to": "player", "id": "bleeding" } }` | Takes a status away |

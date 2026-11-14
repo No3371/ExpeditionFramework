@@ -37,6 +37,7 @@ internal static class Program
         TestPublicApi();
         TestSharedEffectSurvivesThrow();
         TestTextParams();
+        TestHitContext();
         TestEngineVarsAreReadOnly();
         TestSpawnOutsideFight();
         TestRenderingDoesNotRoll();
@@ -818,6 +819,180 @@ internal static class Program
         vaultClears = 0;
         store.Set("a", "key", 1);
         Check(!cellar.HiddenWhen(map.Root), "remembering the key also unlocks the cellar");
+    }
+
+    // damage "hit": names the hooks of one damage read as hit.NAME, innermost damage wins, 0 outside any.
+    private static void TestHitContext()
+    {
+        string Pack(string enter, string areaOn = "", string enemies = "", int hp = 10) => @"{ " + enemies + @"
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [ " + enter + @" ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": " + hp + @" }, ""layout"": [ { ""room"": ""r"" } ]" + (areaOn == "" ? "" : @", ""on"": { " + areaOn + " }") + @" } } }";
+        ExpeditionRun Play(string json, string what, Registry registry = null, bool begin = true)
+        {
+            Content content = Compiled(json, registry);
+            if (content.Problems.Count > 0) { Check(false, what + ": " + string.Join("; ", content.Problems)); return null; }
+            var run = new ExpeditionRun(content, content.Areas["t:a"], new FakeBridge(new Random(1)), n => 1, (pk, k, a) => k, "you");
+            if (begin) run.Begin();
+            return run;
+        }
+        const string Soft = @"{ ""damage"": { ""to"": ""player"", ""amount"": 1, ""armor"": ""ignore"", ""hit"": { ""soft"": 1, ""loud"": ""1 + 1"" } } }";
+
+        // Nesting: a damage dealt inside a hook has its own (here empty) hit, and the outer one comes back after it.
+        ExpeditionRun nest = Play(Pack(Soft + @", { ""set"": { ""var"": ""run.h_after"", ""value"": ""hit.soft + 100"" } }",
+            @"""damaged"": [ { ""add"": { ""var"": ""run.h_calls"", ""value"": 1 } },
+                { ""if"": { ""when"": ""run.h_calls == 1"",
+                    ""then"": [ { ""set"": { ""var"": ""run.h_outer_before"", ""value"": ""hit.soft * 10 + hit.loud"" } },
+                                { ""damage"": { ""to"": ""player"", ""amount"": 1, ""armor"": ""ignore"" } },
+                                { ""set"": { ""var"": ""run.h_outer_after"", ""value"": ""hit.soft * 10 + hit.loud"" } } ],
+                    ""else"": [ { ""set"": { ""var"": ""run.h_inner"", ""value"": ""hit.soft * 10 + hit.loud + 1"" } } ] } } ]"), "nesting pack");
+        if (nest != null)
+        {
+            Check(nest.Get("h_calls") == 2, "both damages fire damaged: " + nest.Get("h_calls"));
+            Check(nest.Get("h_outer_before") == 12, "the hit's values are readable from its hook: " + nest.Get("h_outer_before"));
+            Check(nest.Get("h_inner") == 1, "a nested damage without hit reads 0, not the outer hit: " + nest.Get("h_inner"));
+            Check(nest.Get("h_outer_after") == 12, "the outer hit comes back after a nested damage: " + nest.Get("h_outer_after"));
+            Check(nest.Get("h_after") == 100, "hit reads 0 outside a damage: " + nest.Get("h_after"));
+            Check(nest.Player.Get("hp") == 8, "both damages land: " + nest.Player.Get("hp"));
+            Check(nest.Hit("soft") == 0, "the frames are popped");
+        }
+
+        // Knockout: the hit reaches knocked_out and the run_end that follows.
+        ExpeditionRun ko = Play(Pack(@"{ ""damage"": { ""to"": ""player"", ""amount"": 5, ""armor"": ""ignore"", ""hit"": { ""soft"": 1 } } }",
+            @"""knocked_out"": [ { ""set"": { ""var"": ""run.h_ko"", ""value"": ""hit.soft"" } } ],
+              ""run_end"": [ { ""set"": { ""var"": ""run.h_end"", ""value"": ""hit.soft + 10"" } } ]", hp: 1), "knockout pack");
+        if (ko != null)
+        {
+            Check(ko.Outcome == "knocked_out", "the hit knocks the player out: " + ko.Outcome);
+            Check(ko.Get("h_ko") == 1, "knocked_out reads the hit: " + ko.Get("h_ko"));
+            Check(ko.Get("h_end") == 11, "run_end after a knockout reads the hit: " + ko.Get("h_end"));
+            Check(ko.Hit("soft") == 0, "the frames are popped after a knockout");
+        }
+
+        // An enemy's defeat reads the hit that did it.
+        Content ec = Compiled(Pack("", @"""defeated"": [ { ""set"": { ""var"": ""run.h_def"", ""value"": ""hit.soft"" } } ]", @"
+          ""intents"": { ""idle"": { ""label"": ""k"", ""do"": [] } },
+          ""enemies"": { ""rat"": { ""name"": ""k"", ""stats"": { ""hp"": 5 }, ""behavior"": [ { ""intent"": ""idle"" } ],
+            ""on"": { ""turn_start"": [ { ""damage"": { ""to"": ""self"", ""amount"": 9, ""armor"": ""ignore"", ""hit"": { ""soft"": 1 } } } ] } } },"));
+        if (ec.Problems.Count > 0) Check(false, "enemy pack: " + string.Join("; ", ec.Problems));
+        else
+        {
+            var run = new ExpeditionRun(ec, ec.Areas["t:a"], new FakeBridge(new Random(1)), n => 1, (pk, k, a) => k, "you");
+            run.Begin();
+            IRun api = run;
+            IEntity rat = api.Combat.Make("t:rat");
+            api.Combat.Muster(new[] { rat }, false);
+            api.Combat.Engage(null, run.RootScope, false, null);
+            api.Combat.EnemyTurn();
+            Check(run.Get("h_def") == 1, "defeated reads the hit: " + run.Get("h_def"));
+            Check(run.Hit("soft") == 0, "the frames are popped after a defeat");
+        }
+
+        // C# damage pushes an empty frame too: a mod effect dealing damage from inside a hit's hook is a damage with no hit,
+        // so its own hooks read 0 and the outer hit comes back after it. Outside any damage this reads 0 anyway, so it has
+        // to run inside one to be able to fail.
+        var csReg = new Registry();
+        csReg.For("t").AddEffect("cs", spec => s => s.Run.Damage(s.Run.Player, 1, null, true));
+        ExpeditionRun cs = Play(Pack(Soft, @"""damaged"": [ { ""add"": { ""var"": ""run.h_n"", ""value"": 1 } },
+            { ""if"": { ""when"": ""run.h_n == 1"",
+                ""then"": [ { ""t:cs"": {} }, { ""set"": { ""var"": ""run.h_cs_after"", ""value"": ""hit.soft + 30"" } } ],
+                ""else"": [ { ""set"": { ""var"": ""run.h_cs"", ""value"": ""hit.soft + 40"" } } ] } } ]"), "C# damage pack", csReg);
+        if (cs != null)
+        {
+            Check(cs.Get("h_cs") == 40, "a C# damage inside a hit's hook reads 0: " + cs.Get("h_cs"));
+            Check(cs.Get("h_cs_after") == 31, "the outer hit comes back after a C# damage: " + cs.Get("h_cs_after"));
+            Check(cs.Hit("soft") == 0, "the frames are popped after a C# damage");
+        }
+
+        // An interceptor that deals damage while the outer one is being decided nests the same way.
+        var icReg = new Registry();
+        ExpeditionRun holder = null;
+        icReg.For("t").Intercept("damage", d =>
+        {
+            if (holder.Get("h_once") != 0) return;
+            holder.Set("h_once", 1);
+            holder.Damage(holder.Player, 1, null, true);
+        });
+        ExpeditionRun ic = Play(Pack(Soft, @"""damaged"": [ { ""add"": { ""var"": ""run.h_n"", ""value"": 1 } },
+            { ""add"": { ""var"": ""run.h_sum"", ""value"": ""hit.soft * (run.h_n == 1 ? 1 : 100)"" } } ]"), "interceptor pack", icReg, begin: false);
+        if (ic != null)
+        {
+            holder = ic;
+            ic.Begin();
+            Check(ic.Get("h_n") == 2, "both damages fire damaged: " + ic.Get("h_n"));
+            Check(ic.Get("h_sum") == 100, "the inner damage reads 0, the outer one its hit: " + ic.Get("h_sum"));
+            Check(ic.Hit("soft") == 0, "the frames are popped after an interceptor's damage");
+        }
+
+        // defeat and leave inside a damaged hook still see the hit: the damage is not over until its hooks are.
+        ExpeditionRun inDefeat = Play(Pack(Soft, @"""damaged"": [ { ""defeat"": { ""who"": ""self"" } } ],
+            ""knocked_out"": [ { ""set"": { ""var"": ""run.h_ko"", ""value"": ""hit.soft + 10"" } } ],
+            ""run_end"": [ { ""set"": { ""var"": ""run.h_end"", ""value"": ""hit.soft + 20"" } } ]"), "defeat in a hook pack");
+        if (inDefeat != null)
+        {
+            Check(inDefeat.Get("h_ko") == 11, "a defeat effect in damaged: knocked_out reads the hit: " + inDefeat.Get("h_ko"));
+            Check(inDefeat.Get("h_end") == 21, "a defeat effect in damaged: run_end reads the hit: " + inDefeat.Get("h_end"));
+            Check(inDefeat.Hit("soft") == 0, "the frames are popped after a defeat in a hook");
+        }
+        ExpeditionRun inLeave = Play(Pack(Soft, @"""damaged"": [ { ""leave"": { ""outcome"": ""left"" } } ],
+            ""run_end"": [ { ""set"": { ""var"": ""run.h_end"", ""value"": ""hit.soft + 20"" } } ]"), "leave in a hook pack");
+        if (inLeave != null)
+        {
+            Check(inLeave.Outcome == "left", "the leave ends the run: " + inLeave.Outcome);
+            Check(inLeave.Get("h_end") == 21, "a leave in damaged: run_end reads the hit: " + inLeave.Get("h_end"));
+            Check(inLeave.Hit("soft") == 0, "the frames are popped after a leave in a hook");
+        }
+
+        // A hook that throws leaves no frame behind: the damage's frame is popped on the way out.
+        var boomReg = new Registry();
+        boomReg.For("t").AddEffect("boom", spec => s => throw new InvalidOperationException("boom"));
+        ExpeditionRun thrower = Play(Pack(Soft, @"""damaged"": [ { ""t:boom"": {} } ]"), "throwing hook pack", boomReg, begin: false);
+        if (thrower != null)
+        {
+            bool threw = false;
+            try { thrower.Begin(); }
+            catch (InvalidOperationException) { threw = true; }
+            Check(threw, "the throwing hook escapes the damage");
+            Check(thrower.Hit("soft") == 0, "an exception through a damage pops its frame: " + thrower.Hit("soft"));
+        }
+
+        // Loader problems.
+        void One(string enter, string what, params string[] parts)
+        {
+            List<string> p = ProblemsIn(Pack(enter));
+            Check(p.Count == 1 && parts.All(x => p[0].Contains(x)), what + ": " + string.Join("; ", p));
+        }
+        string Hit(string hit) => @"{ ""damage"": { ""to"": ""player"", ""amount"": 1, ""hit"": " + hit + " } }";
+        One(Hit(@"[ ""soft"" ]"), "a list is no hit map", ".damage.hit", "must be an object");
+        One(Hit(@"{ ""Soft"": 1 }"), "a bad name", ".hit.Soft", "a-z, 0-9 or _");
+        One(Hit(@"{ ""soft"": ""nope.x"" }"), "a bad expression", ".hit.soft", "unknown path");
+        One(@"{ ""set"": { ""var"": ""hit.soft"", ""value"": 1 } }", "hit is read-only", "\"var\" must be a path");
+        One(@"{ ""set"": { ""var"": ""run.h_x"", ""value"": ""hit.$x"" } }", "hit.$x is no path", "unknown path");
+        One(@"{ ""set"": { ""var"": ""run.h_x"", ""value"": ""hit.a.b"" } }", "hit.a.b is no path", "unknown path");
+
+        // Lint: a hit read nobody sets warns once, a set one doesn't.
+        List<string> w = WarningsIn(Pack(Soft + @", { ""set"": { ""var"": ""run.h_x"", ""value"": ""hit.sfot"" } }"));
+        Check(w.Count == 1 && w[0].Contains("hit.sfot is read but no damage"), "a hit read nobody sets warns once: " + string.Join("; ", w));
+        w = WarningsIn(Pack(Soft + @", { ""set"": { ""var"": ""run.h_x"", ""value"": ""hit.soft"" } }"));
+        Check(w.Count == 0, "a hit read that is set does not warn: " + string.Join("; ", w));
+
+        // With other packs named (ef-sim lint --mod), the setter may be in one of them, so the read can't be judged here:
+        // the warning is for a loaded set of packs only.
+        const string Reader = @"{ ""rooms"": { ""q"": { ""text"": ""k"", ""enter"": [ { ""set"": { ""var"": ""run.x"", ""value"": ""hit.soft"" } } ] } } }";
+        Content lone = LoadReader(Reader, null);
+        Check(lone.Warnings.Count == 1 && lone.Warnings[0].Contains("hit.soft is read but no damage"), "a lone reader warns: " + string.Join("; ", lone.Warnings));
+        Content none = LoadReader(Reader, new HashSet<string>());
+        Check(none.Warnings.Count == 1, "an empty OtherPacks still warns: " + string.Join("; ", none.Warnings));
+        Content beside = LoadReader(Reader, new HashSet<string> { "a" });
+        Check(beside.Warnings.Count == 0, "a reader beside another named pack does not warn: " + string.Join("; ", beside.Warnings));
+    }
+
+    private static Content LoadReader(string json, ICollection<string> otherPacks)
+    {
+        var content = new Content();
+        var loader = new PackLoader(content, new Registry()) { OtherPacks = otherPacks };
+        loader.Load("b", "x.json", f => json);
+        loader.Finish();
+        return content;
     }
 
     // A memory name a pack reads but never writes always reads 0 or "", so loading warns once per name, at its first read.
