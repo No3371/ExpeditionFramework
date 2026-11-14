@@ -1,6 +1,6 @@
 # Damage Hit Context (`damage.hit` → `hit.NAME`)
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Author:** Claude Opus 5.5 (plan step)
 > **Parent:** 2611140500-authoring-language-text-params-hit-context-proposal.md
 > **Source:** 2611140500-authoring-language-text-params-hit-context-proposal.md (Accepted 2026-11-14; § C2 design sketch, § Balance-Proof Bar, Next Steps 3)
