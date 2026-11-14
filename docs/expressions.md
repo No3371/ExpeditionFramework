@@ -53,7 +53,7 @@ A path reads a value. It starts with one of these heads:
 | `memory.NAME` | Your pack's [memory](memory.md), kept across runs |
 | `memory.PACK.NAME` | Another pack's memory, read-only |
 | `game.NAME` | The game's state: day, luck, reputation and more. [Game reads](game.md) |
-| `arg.NAME` | An argument of a [shared effect](packs.md#shared-pieces), or a value the framework passes (such as `arg.percent`) |
+| `arg.NAME` | An argument of a [shared effect](packs.md#shared-pieces), or a value the framework passes (such as `arg.percent`). `arg.$NAME` is not a path: text parameters are written `{arg.$NAME}` and filled in when the pack loads (see [packs.md](packs.md#text-parameters)) |
 | `val.NAME` | A named value from the pack's `values` section |
 
 Who `self` and `target` are depends on where the expression is: see the hooks table in

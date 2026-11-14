@@ -36,6 +36,7 @@ internal static class Program
         TestModEffectIsAPeer();
         TestPublicApi();
         TestSharedEffectSurvivesThrow();
+        TestTextParams();
         TestEngineVarsAreReadOnly();
         TestSpawnOutsideFight();
         TestRenderingDoesNotRoll();
@@ -446,6 +447,99 @@ internal static class Program
         }
         fine(run.RootScope);
         Check(run.Get("ok") == 1 && !run.Log_.Any(l => l.Text.Contains("too deeply")), "a throwing shared effect should not use up the recursion limit");
+    }
+
+    // A shared effect's $ params are text: {arg.$NAME} in the body is filled in at load, per call site, so fields that are
+    // literals (a faction, a var path, a text key) can differ between calls. Misuse is a problem at load, never a run-time surprise.
+    private static void TestTextParams()
+    {
+        const string Book = @"""book"": { ""params"": { ""$f"": """", ""n"": 0 }, ""do"": [
+              { ""reputation"": { ""faction"": ""{arg.$f}"", ""value"": ""arg.n"", ""quiet"": true } },
+              { ""set"": { ""var"": ""run.{arg.$f}_n"", ""value"": ""arg.n"" } },
+              { ""say"": ""k_{arg.$f}"" } ] }";
+        string Pack(string effects, string enter) => @"{ ""effects"": { " + effects + @" },
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [ " + enter + @" ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ] } } }";
+        (Content Content, FakeBridge Bridge, ExpeditionRun Run) Play(string json)
+        {
+            Content content = Compiled(json);
+            if (content.Problems.Count > 0) { Check(false, "text params pack: " + string.Join("; ", content.Problems)); return (content, null, null); }
+            var bridge = new FakeBridge(new Random(1));
+            var run = new ExpeditionRun(content, content.Areas["t:a"], bridge, n => 1, (pk, k, a) => k, "you");
+            run.Begin();
+            return (content, bridge, run);
+        }
+
+        // Works: each call site gets its own filled body.
+        var works = Play(Pack(Book, @"{ ""book"": { ""$f"": ""security"", ""n"": 2 } }, { ""book"": { ""$f"": ""upper_level"", ""n"": 3 } }"));
+        if (works.Run != null)
+        {
+            Check(works.Bridge.Rep["security"] == 2 && works.Bridge.Rep["upper_level"] == 3, "each call fills its own faction");
+            Check(works.Run.Get("security_n") == 2 && works.Run.Get("upper_level_n") == 3, "filled var paths: " + works.Run.Get("security_n") + "/" + works.Run.Get("upper_level_n"));
+            Check(works.Content.TextKeys.Contains(("t", "k_security")) && works.Content.TextKeys.Contains(("t", "k_upper_level")), "filled text keys register for lint");
+        }
+
+        // Bare form fills the first param; a default fills what the call leaves out.
+        var bare = Play(Pack(Book, @"{ ""book"": ""security"" }"));
+        if (bare.Run != null) Check(!bare.Bridge.Rep.ContainsKey("security") && bare.Content.TextKeys.Contains(("t", "k_security")), "bare form fills the first text param");
+        var bareOne = Play(Pack(@"""settle"": { ""params"": { ""$f"": """" }, ""do"": { ""reputation"": { ""faction"": ""{arg.$f}"", ""value"": 1, ""quiet"": true } } }", @"{ ""settle"": ""security"" }"));
+        if (bareOne.Run != null) Check(bareOne.Bridge.Rep["security"] == 1, "a one-param bare form reaches the filled faction");
+        var fallback = Play(Pack(Book.Replace(@"""$f"": """"", @"""$f"": ""security"""), @"{ ""book"": { ""n"": 4 } }"));
+        if (fallback.Run != null) Check(fallback.Bridge.Rep["security"] == 4, "a default fills a missing text param");
+
+        // Nested: a text param can be passed down as the caller's own {arg.$NAME}.
+        var nested = Play(Pack(Book + @", ""outer"": { ""params"": { ""$g"": """" }, ""do"": { ""book"": { ""$f"": ""{arg.$g}"", ""n"": 1 } } }",
+            @"{ ""outer"": { ""$g"": ""security"" } }"));
+        if (nested.Run != null) Check(nested.Bridge.Rep["security"] == 1 && nested.Run.Get("security_n") == 1, "a text param passes down through a nested call");
+
+        // Numeric-only effects behave as before.
+        var numeric = Play(Pack(@"""raise"": { ""params"": { ""n"": 1 }, ""do"": { ""add"": { ""var"": ""run.heat"", ""value"": ""arg.n"" } } }",
+            @"{ ""raise"": 2 }, { ""raise"": { ""n"": 3 } }"));
+        if (numeric.Run != null) Check(numeric.Run.Get("heat") == 5, "numeric shared effects still run: " + numeric.Run.Get("heat"));
+
+        List<string> Problems(string effects, string enter) => ProblemsIn(Pack(effects, enter));
+        void One(List<string> p, string what, params string[] parts) =>
+            Check(p.Count == 1 && parts.All(x => p[0].Contains(x)), what + ": " + string.Join("; ", p));
+
+        List<string> p6 = Problems(Book, @"{ ""book"": { ""$f"": ""run.x"", ""n"": 1 } }");
+        One(p6, "a value outside a-z, 0-9, _ is a problem at the call site", "rooms.r.enter[0].book", "$f");
+        One(Problems(Book, @"{ ""book"": { ""$f"": 3 } }"), "a number is not text", "is text");
+        One(Problems(Book, @"{ ""book"": { ""n"": 1 } }"), "a missing required text param", "book needs $f");
+        One(Problems(@"""book"": { ""params"": { ""$f"": """" }, ""do"": { ""say"": ""k_{arg.$g}"" } }", ""), "an undeclared {arg.$g}", "effects.book.do", "no text parameter $g");
+        One(Problems(@"""book"": { ""params"": { ""$f"": """" }, ""do"": { ""set"": { ""var"": ""run.x"", ""value"": ""arg.$f"" } } }", ""),
+            "arg.$f outside braces", "{arg.$f}");
+        One(Problems(@"""book"": { ""params"": { ""$F"": """" }, ""do"": [] }", ""), "a bad param name", "effects.book.params.$F");
+        One(Problems(@"""book"": { ""params"": { ""$f"": 3 }, ""do"": [] }", ""), "a non-text default", "effects.book.params.$f");
+        One(Problems(@"""book"": { ""params"": { ""$f"": ""Run.X"" }, ""do"": [] }", ""), "a default outside a-z, 0-9, _", "effects.book.params.$f");
+        One(Problems(@"""book"": { ""params"": { ""$f"": """" }, ""do"": { ""set"": { ""var"": ""run.x"", ""value"": 1, ""{arg.$f}"": 1 } } }", ""),
+            "a {arg.$f} in a key", "{arg.$f}");
+
+        List<string> bad = Problems(Book, @"{ ""book"": { ""$f"": ""church"", ""n"": 1 } }");
+        string site = "rooms.r.enter[0].book";
+        Check(bad.Count >= 1 && bad.Any(x => x.IndexOf(site, StringComparison.Ordinal) >= 0 && x.IndexOf(".do[0].reputation", StringComparison.Ordinal) > x.IndexOf(site, StringComparison.Ordinal)),
+            "a problem the filled body causes names the call site and the body place: " + string.Join("; ", bad));
+
+        List<string> self = Problems(@"""a"": { ""params"": { ""$x"": """" }, ""do"": { ""a"": { ""$x"": ""{arg.$x}"" } } }", @"{ ""a"": { ""$x"": ""security"" } }");
+        One(self, "an effect that calls itself through its text params", "calls itself");
+        List<string> mutual = Problems(@"""a"": { ""params"": { ""$x"": """" }, ""do"": { ""b"": { ""$x"": ""{arg.$x}"" } } },
+            ""b"": { ""params"": { ""$x"": """" }, ""do"": { ""a"": { ""$x"": ""{arg.$x}"" } } }", @"{ ""a"": { ""$x"": ""security"" } }");
+        Check(mutual.Count >= 1 && mutual.Any(x => x.Contains("calls itself")), "mutual recursion ends in a problem: " + string.Join("; ", mutual));
+
+        List<string> numericUse = Problems(@"""raise"": { ""params"": { ""n"": 1 }, ""do"": { ""say"": ""k_{arg.$x}"" } }", "");
+        Check(numericUse.Count >= 1 && numericUse.Any(x => x.Contains("no text parameter $x")), "{arg.$x} in a numeric-only effect is a problem: " + string.Join("; ", numericUse));
+        List<string> asExpr = Problems("", @"{ ""set"": { ""var"": ""run.x"", ""value"": ""arg.$f"" } }");
+        Check(asExpr.Count == 1 && asExpr[0].Contains("arg.$NAME is text"), "arg.$f in an expression names the text-param rule: " + string.Join("; ", asExpr));
+        One(Problems(@"""book"": { ""params"": { ""$f"": ""Security Guys"" }, ""do"": { ""reputation"": { ""faction"": ""{arg.$f}"", ""value"": 1 } } }", @"{ ""book"": { } }"),
+            "an invalid default that is not passed is reported once, at its declaration", "effects.book.params.$f");
+
+        // A text-param effect nobody calls is not checked, so it warns, once however often Finish runs.
+        var uncalled = new Content();
+        var loader = new PackLoader(uncalled, new Registry());
+        loader.Load("t", "x.json", f => Pack(Book, ""));
+        loader.Finish();
+        loader.Finish();
+        Check(uncalled.Problems.Count == 0 && uncalled.Warnings.Count(w => w.Contains("never called")) == 1, "an uncalled text-param effect warns once: " + string.Join("; ", uncalled.Warnings));
+        Check(works.Content.Warnings.All(w => !w.Contains("never called")), "a called one does not warn");
     }
 
     // Names the engine answers itself can't be written from data, and the list matches what Get answers.

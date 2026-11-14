@@ -560,6 +560,10 @@ namespace ExpeditionFramework.Core
         public void Set(string pack, string name, int value) => numbers[(pack, name)] = value;
         public string GetText(string pack, string name) => texts.TryGetValue((pack, name), out string v) ? v : "";
         public void SetText(string pack, string name, string value) => texts[(pack, name)] = value ?? "";
+
+        /// <summary>Every number set so far, for tools that report a store's end state; reading changes nothing.</summary>
+        public IEnumerable<KeyValuePair<(string Pack, string Name), int>> Numbers => numbers;
+        public IEnumerable<KeyValuePair<(string Pack, string Name), string>> Texts => texts;
     }
 
     public delegate string Localizer(string pack, string key, object[] args);

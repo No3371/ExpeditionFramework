@@ -1,7 +1,10 @@
 # Text Params for Shared Effects + ef-sim Run Digest
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Author:** Claude Opus 5.5 (plan step)
+> **Completed:** 2026-11-14
+> **Walkthrough:** 2611140627-text-params-and-sim-digest-walkthrough.md
+> **Log:** 2611140627-text-params-and-sim-digest-log.md
 > **Parent:** 2611140500-authoring-language-text-params-hit-context-proposal.md
 > **Source:** 2611140500-authoring-language-text-params-hit-context-proposal.md (Accepted 2026-11-14; § Recommended Approach step 1, § Balance-Proof Bar)
 > **Related Projex:** 2611140152-ef-ner-next-steps-proposal.md (NER; § C origin) | 2611140220-ef-sim-reach-and-item-guard-plan.md (row keys the proof leans on) | 2611120227-runtime-hooks-expr-expansion-explore.md | 2611120231-pack-schema-loader-expansion-explore.md

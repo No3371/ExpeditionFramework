@@ -145,7 +145,8 @@ namespace ExpeditionFramework.Core
                     // A "$" name is text: as a number, memory.$x would read the text value's key.
                     if (!MemoryKey(name, pack, out string owner, out string key) || key.StartsWith("$")) return null;
                     return s => MemoryOf(s)?.Get(owner, key) ?? 0;
-                case "arg": return s => s.Arg(name);
+                // A "$" arg is text, filled into the shared effect's JSON at load as {arg.$NAME}; read as a number it would be 0.
+                case "arg": return name.StartsWith("$", StringComparison.Ordinal) ? null : s => s.Arg(name);
                 case "game": return s => s.Run.Game(name);
                 case "val": return named?.Invoke(name);
                 case "role":
@@ -377,6 +378,11 @@ namespace ExpeditionFramework.Core
             if (badGame != null)
             {
                 Fail(badGame);
+                return s => 0;
+            }
+            if (word == "arg." && at < text.Length && text[at] == '$')
+            {
+                Fail("arg.$NAME is text, not a number: write {arg.$NAME} in a value of a shared effect that declares $NAME");
                 return s => 0;
             }
             Value reader = Reader(word, named, pack: pack);

@@ -58,6 +58,8 @@ internal sealed class KitBridge : IBridge
     public void AddCredits(int amount) => Credits += amount;
     public bool SpendCredits(int amount) { if (Credits < amount) return false; Credits -= amount; return true; }
     public int GroundCount => ground.Count;
+    // The ground pile in order, for the run digest; read-only so a digest cannot change what a later take-back finds.
+    public IReadOnlyList<RunItem> GroundNow => ground;
     public int ClearGround() { int n = ground.Count; ground.Clear(); return n; }
 
     public string TakeBack()
@@ -110,7 +112,14 @@ internal sealed class KitBridge : IBridge
     // The row's store when sim.json gives the row memory; otherwise an empty one for this run alone.
     public IMemory Memory { get; }
     public void Wound(string kind) { }
-    public void NightLog(string text, string color) { if (text != null && text.Contains("{")) problems.Add("unfilled night log: " + text); }
+    // Every night-log line this night wrote, in order, as "color<TAB>text"; the run digest hashes them.
+    public readonly List<string> NightLines = new List<string>();
+    public void NightLog(string text, string color)
+    {
+        if (text != null && text.Contains("{")) problems.Add("unfilled night log: " + text);
+        NightLines.Add(color + "\t" + text);
+    }
+    public IReadOnlyDictionary<string, double> ReputationNow => reputation;
     public void PlaySound(string id) { }
     public void PlayItemSound(RunItem item, string fallback) { }
     public bool OpenTrade(TradeRequest request) => settings.TradeOpens;

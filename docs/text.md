@@ -77,6 +77,9 @@ A key with `{path}` in it is filled in when shown:
 `{self}`, `{target}`, `{player}`, `{item}`, `{with}` and `{role.NAME}` give the id (without its pack); `{area}` the
 area's id. Any [text path](#arguments) works. Lint can't check keys built this way, so test them with a run.
 
+`{arg.$NAME}` inside a shared effect is different: it is filled in when the pack loads, so the key is already whole
+and lint checks it. See [text parameters](packs.md#text-parameters). Only `{path}` templates wait until a run.
+
 ## Arguments
 
 Each entry in `args` is one of:

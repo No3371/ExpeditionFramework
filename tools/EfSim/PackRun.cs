@@ -8,7 +8,7 @@ using ExpeditionFramework.Core;
 // ef-sim run: plays every row of the pack's sim.json and runs the checks every pack gets.
 internal static class PackRun
 {
-    private const string Usage = "usage: ef-sim run <pack folder> [--runs <n>]";
+    private const string Usage = "usage: ef-sim run <pack folder> [--runs <n>] [--digest]";
     private const int MaxSteps = 2000;
 
     public static int Run(string frameworkRoot, string[] args)
@@ -16,9 +16,11 @@ internal static class PackRun
         if (args.Length == 0 || args[0].StartsWith("--")) { Console.WriteLine(Usage); return 2; }
         string folder = Path.GetFullPath(args[0]);
         int runsOverride = 0;
+        bool digest = false;
         for (int i = 1; i < args.Length; i++)
         {
             if (args[i] == "--runs" && i + 1 < args.Length && int.TryParse(args[i + 1], out int n) && n > 0) { runsOverride = n; i++; }
+            else if (args[i] == "--digest") digest = true;
             else { Console.WriteLine("unknown argument " + args[i]); Console.WriteLine(Usage); return 2; }
         }
         string id = Lint.ReadId(folder);
@@ -32,6 +34,7 @@ internal static class PackRun
         Content content = Lint.Load(frameworkRoot, folder, id, new HashSet<string>(), out Dictionary<string, Dictionary<string, string>> text,
             out List<string> errors, out List<string> notes, memoryPacks);
         foreach (string note in notes) Console.WriteLine("WARN " + note);
+        var rowDigests = new List<string>();
         var failures = new List<string>(errors);          // load problems + text keys missing from en.csv
         if (content.Problems.Count == 0)
         {
@@ -69,12 +72,14 @@ internal static class PackRun
             Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0,-18} {1,-12} {2,-8} {3,6} {4,8} {5,12} {6,10}",
                 "area", "kit", "bot", "runs", "cleared", "knocked out", "extracted"));
             var memory = new List<string>();
+            var digests = new List<string>();
             for (int r = 0; r < config.Rows.Count; r++)
             {
                 SimRow row = config.Rows[r];
                 config.Bots.TryGetValue(row.Bot, out RuleBot bot);
                 SimBridge settings = row.Game == null ? config.Bridge : config.Bridge.With(row.Game);
-                RowResult last = Play(content, id, areas[row.Area], row, row.Kits.Select(k => config.Kits[k]).ToList(), bot, settings, runsOverride > 0 ? runsOverride : row.Runs, localize, offered, problems);
+                RowResult last = Play(content, id, areas[row.Area], row, row.Kits.Select(k => config.Kits[k]).ToList(), bot, settings, runsOverride > 0 ? runsOverride : row.Runs, localize, offered, problems, digest);
+                if (digest) digests.Add("digest runs[" + r + "] " + row.Area + " " + row.Kit + " " + row.Bot + " " + last.Digest);
                 if (row.Memory != null) memory.AddRange(row.Memory.Check(id, last.Memory, "runs[" + r + "]"));
                 memory.AddRange(CheckRow(row, last, "runs[" + r + "]"));
             }
@@ -90,9 +95,12 @@ internal static class PackRun
             failures.AddRange(packing);
             failures.AddRange(loot);
             failures.AddRange(config.Offered.Where(o => !offered.Contains(o)).Select(o => "never offered: " + o));
+            rowDigests = digests;
         }
         foreach (string failure in failures) Console.WriteLine("FAIL " + failure);
         Console.WriteLine("ef-sim " + id + ": " + (failures.Count == 0 ? "all checks passed" : failures.Count + " check(s) failed"));
+        // After the summary, so the plain output stays an exact prefix of the digest output.
+        foreach (string line in rowDigests) Console.WriteLine(line);
         return failures.Count == 0 ? 0 : 1;
     }
 
@@ -166,7 +174,7 @@ internal static class PackRun
     private static string AreaId(string id, string name) => name.Contains(':') ? name : id + ":" + name;
 
     // What a row leaves behind: the last night's memory and bridge, and how many nights each intel slot named anything.
-    private sealed class RowResult { public IMemory Memory; public KitBridge Bridge; public readonly Dictionary<string, int> IntelNights = new Dictionary<string, int>(); }
+    private sealed class RowResult { public IMemory Memory; public KitBridge Bridge; public readonly Dictionary<string, int> IntelNights = new Dictionary<string, int>(); public string Digest; }
 
     // runs[n].expect: end reputation and intel nights, compared as a memory expect is.
     private static IEnumerable<string> CheckRow(SimRow row, RowResult result, string at)
@@ -185,8 +193,9 @@ internal static class PackRun
 
     // Plays a row's runs and returns what its last night left and the intel tally.
     private static RowResult Play(Content content, string pack, AreaDef area, SimRow row, List<SimKit> kits, RuleBot bot, SimBridge settings, int runs,
-        Localizer localize, HashSet<string> offered, HashSet<string> problems)
+        Localizer localize, HashSet<string> offered, HashSet<string> problems, bool digest)
     {
+        var rowDigest = digest ? new RunDigest() : null;
         var random = new Random(row.Seed);
         // Intel has its own random so a row that turns intel on doesn't shift the dice of its runs against a row that doesn't.
         Random intelRandom = row.Intel ? new Random(unchecked(row.Seed * 7919 + 1)) : null;
@@ -207,6 +216,8 @@ internal static class PackRun
             Dictionary<string, List<string>> intel = row.Intel ? RollIntel(area, bridge, memory, localize, intelRandom, result.IntelNights) : null;
             var run = new ExpeditionRun(content, area, bridge, s => random.Next(1, s + 1), localize, "you", intel);
             result.Bridge = bridge;
+            var lines = digest ? new List<LogLine>() : null;
+            if (digest) run.Logged = lines.Add;
             try
             {
                 run.Begin();
@@ -236,6 +247,7 @@ internal static class PackRun
             {
                 problems.Add(where + ": a run threw " + e.GetType().Name + ": " + e.Message);
             }
+            rowDigest?.Add(run, lines, bridge, memory);
             if (run.Outcome == "cleared" || run.Get("cleared") > 0) cleared++;
             if (run.Outcome == "knocked_out") knocked++;
             else if (run.Outcome != null) extracted++;
@@ -243,6 +255,7 @@ internal static class PackRun
         Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0,-18} {1,-12} {2,-8} {3,6} {4,7:0.0}% {5,11:0.0}% {6,9:0.0}%",
             row.Area, row.Kit, row.Bot, runs, 100.0 * cleared / runs, 100.0 * knocked / runs, 100.0 * extracted / runs));
         result.Memory = memory;
+        result.Digest = rowDigest?.Hex();
         return result;
     }
 

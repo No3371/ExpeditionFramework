@@ -137,7 +137,46 @@ The second form passes 2 to the first parameter. The third uses the defaults. An
 a problem. A shared effect without parameters can be written as just the effect list, as in
 `"swing_miss": [ { "say": ... } ]`.
 
-Parameters are numbers. A shared effect calling itself more than 32 levels deep stops and logs it.
+Plain parameters are numbers, read in the body as `arg.NAME`. A shared effect calling itself more than 32 levels deep stops and logs it.
+
+#### Text parameters
+
+A parameter whose name starts with `$` is text. Its default is a string, and `""` means the caller must give it. In the
+body, `{arg.$NAME}` inside any string value is replaced by the caller's text when the pack loads, so it can fill fields
+that are written out literally: a faction, a variable path, a text key, part of an expression.
+
+```json
+"effects": {
+  "settle_rep": {
+    "params": { "$faction": "", "$short": "sec", "by": 1 },
+    "do": [
+      { "reputation": { "faction": "{arg.$faction}", "value": "arg.by", "quiet": true } },
+      { "add": { "var": "run.gain_{arg.$short}", "value": "arg.by" } },
+      { "night_log": { "text": "rep_up_{arg.$short}" } }
+    ]
+  }
+}
+```
+
+```json
+{ "settle_rep": { "$faction": "security", "$short": "sec", "by": 2 } }
+{ "settle_rep": "security" }
+```
+
+The second form fills only the first parameter, as for numbers; every other parameter takes its default. Here `$short`
+has one (`sec`), so the call loads. Had `$short` been `""` it would be required, and the bare form would fail with
+`settle_rep needs $short`: give that call the object form. Rules:
+
+- The text is `a-z`, `0-9` and `_` only, and a number is not text. Anything else is a problem at the call, so the text can't
+  put expression syntax into a value field.
+- Placeholders are filled in values only, never in object keys.
+- Each call site gets its own filled copy of the body, so lint checks the resulting faction, variable and text key at that
+  call. A problem names the call site and the place in the body, such as `rooms.r.enter[0].settle_rep.do[0].reputation`.
+- `arg.$NAME` written outside braces, a `{arg.$NAME}` no parameter declares, and a `{arg.$NAME}` in an effect with no
+  text parameters are problems.
+- An effect that calls itself through its text parameters is a problem at the inner call.
+- A text-parameter effect that no call compiles gets a warning, since its body is only checked at a call. Lint with
+  `--mod` when only a mod-gated file calls it. A C# mod that builds calls after loading will see this warning too.
 
 A shared effect from another pack is called by its full name, `{ "other_pack:raise_heat": { "by": 2 } }`. Inside your
 own pack, your shared effect wins over a built-in of the same name.

@@ -355,11 +355,16 @@ namespace ExpeditionFramework.Core
         public int Game(string name) => Bridge.GameValue(name);
         IMemory IMemoryHost.Memory => Bridge.Memory;
 
+        /// <summary>Called with every line as it is logged. The log itself keeps only the last 200 lines; tools that need all of them listen here.</summary>
+        public Action<LogLine> Logged { get; set; }
+
         public void Log(string tone, string text)
         {
-            log.Add(new LogLine(tone, text, pendingRoll));
+            var line = new LogLine(tone, text, pendingRoll);
+            log.Add(line);
             pendingRoll = null;
             if (log.Count > LogLimit) log.RemoveRange(0, log.Count - LogLimit);
+            Logged?.Invoke(line);
         }
 
         public void Finish(string outcome)

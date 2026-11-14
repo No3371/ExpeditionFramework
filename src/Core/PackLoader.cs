@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using ExpeditionFramework.Api;
 using Node = System.Collections.Generic.Dictionary<string, object>;
 
@@ -145,6 +146,15 @@ namespace ExpeditionFramework.Core
         private readonly HashSet<(string Owner, string Name)> memoryWrites = new HashSet<(string Owner, string Name)>();
         private readonly HashSet<string> packs = new HashSet<string>();
         private readonly List<string> patchers = new List<string>();
+        // Text-parameter shared effects compile at each call site, so an effect whose body calls itself through its text
+        // parameters would expand forever. These are the effects mid-expansion; meeting one again is that recursion.
+        private readonly HashSet<string> expanding = new HashSet<string>();
+        // Text-parameter effects no call has compiled yet. Their body is only checked at a call site, so one nobody calls is unchecked.
+        private readonly Dictionary<string, (string Pack, string At)> uncalledText = new Dictionary<string, (string Pack, string At)>();
+        private static readonly Regex TextValue = new Regex("^[a-z0-9_]+$");
+        private static readonly Regex TextParamName = new Regex("^\\$[a-z0-9_]+$");
+        private static readonly Regex BareTextArg = new Regex("(?<![a-z0-9_.])arg\\.\\$([a-z0-9_]*)");
+        private static readonly Regex Placeholder = new Regex("\\{arg\\.\\$([^}]*)\\}");
         private string compilingValue;
         private string folder = "";
         private string current = "";
@@ -467,17 +477,89 @@ namespace ExpeditionFramework.Core
                 parameters = Map(def, "params").ToList();
                 body = def.TryGetValue("do", out object inner) ? inner : null;
             }
-            var compiled = new Effect[1];
-            sharedBodies.Add(() =>
+            var declared = new HashSet<string>();
+            foreach (KeyValuePair<string, object> p in parameters.Where(p => p.Key.StartsWith("$", StringComparison.Ordinal)))
             {
-                current = pack;
-                compiled[0] = Effect(body, pack, at + ".do");
-            });
-            registry.Effects[pack + ":" + name] = call => CompileSharedCall((Spec)call, name, parameters, compiled, pack, at);
+                string where = at + ".params." + p.Key;
+                if (!TextParamName.IsMatch(p.Key)) { Problem(where, "a text parameter is $ then a-z, 0-9 or _"); continue; }
+                declared.Add(p.Key.Substring(1));
+                if (!(p.Value is string fallback)) Problem(where, "a text parameter's default is text (\"\" for none)");
+                else if (fallback != "" && !TextValue.IsMatch(fallback)) Problem(where, "a text parameter's value is a-z, 0-9 or _ (got \"" + fallback + "\")");
+            }
+            ScanTextUse(body, declared, at + ".do");
+            if (!parameters.Any(p => p.Key.StartsWith("$", StringComparison.Ordinal)))
+            {
+                var compiled = new Effect[1];
+                sharedBodies.Add(() =>
+                {
+                    current = pack;
+                    compiled[0] = Effect(body, pack, at + ".do");
+                });
+                registry.Effects[pack + ":" + name] = call => CompileSharedCall((Spec)call, name, parameters, compiled, pack, at);
+                return;
+            }
+            // Compiled per call site, not once like a numeric-only effect: the text a caller passes becomes part of the body's
+            // JSON, so each call is a different body. Rejected: doing this for every shared effect, which would multiply
+            // compile cost and change the path every numeric effect takes today.
+            uncalledText[pack + ":" + name] = (pack, at);
+            registry.Effects[pack + ":" + name] = call => CompileSharedCall((Spec)call, name, parameters, null, pack, at, body);
         }
 
-        private Effect CompileSharedCall(Spec call, string name, List<KeyValuePair<string, object>> parameters, Effect[] body, string pack, string at)
+        /// <summary>
+        /// Reports misuse of {arg.$NAME} in a shared effect's body: a name no parameter declares, a bare arg.$NAME (an
+        /// expression would read it as a number) and any use in a key. Values only, never keys: filling a key could make
+        /// two keys collide without a word. Rejected: free text in the placeholder, because {arg.$x} could then put
+        /// expression syntax into a value field; the a-z, 0-9, _ rule on the filled text prevents that.
+        /// </summary>
+        private void ScanTextUse(object node, ISet<string> declared, string at)
         {
+            switch (node)
+            {
+                case Node map:
+                    foreach (KeyValuePair<string, object> entry in map)
+                    {
+                        if (entry.Key.Contains("{arg.$")) Problem(at + "." + entry.Key, "{arg.$name} fills in values, not keys");
+                        ScanTextUse(entry.Value, declared, at + "." + entry.Key);
+                    }
+                    break;
+                case List<object> list:
+                    for (int i = 0; i < list.Count; i++) ScanTextUse(list[i], declared, at + "[" + i + "]");
+                    break;
+                case string text:
+                    foreach (Match m in Placeholder.Matches(text))
+                    {
+                        if (!declared.Contains(m.Groups[1].Value)) Problem(at, "no text parameter $" + m.Groups[1].Value);
+                    }
+                    Match bare = BareTextArg.Match(Placeholder.Replace(text, ""));
+                    if (bare.Success) Problem(at, "write {arg.$" + (bare.Groups[1].Value == "" ? "x" : bare.Groups[1].Value) + "}: a text parameter is filled in as text, not read as a number");
+                    break;
+            }
+        }
+
+        /// <summary>A copy of a shared effect's body with each {arg.$NAME} replaced by the call's text. Every call site reuses the body, so it is copied, never edited in place.</summary>
+        private static object Fill(object node, Dictionary<string, string> args)
+        {
+            switch (node)
+            {
+                case Node map:
+                    var copy = new Node();
+                    foreach (KeyValuePair<string, object> entry in map) copy[entry.Key] = Fill(entry.Value, args);
+                    return copy;
+                case List<object> list:
+                    return list.Select(item => Fill(item, args)).ToList();
+                case string text:
+                    // A name no parameter declares was reported when the effect was declared; leaving it unfilled avoids a second, confusing error.
+                    return Placeholder.Replace(text, m => args.TryGetValue(m.Groups[1].Value, out string v) ? v : m.Value);
+                default:
+                    return node;
+            }
+        }
+
+        private Effect CompileSharedCall(Spec call, string name, List<KeyValuePair<string, object>> parameters, Effect[] body, string pack, string at, object rawBody = null)
+        {
+            // First, before any validation that can return: a call with a bad argument is reported at the call and must not also
+            // draw "never called". Moving this below the checks would double-report every misused text-param effect.
+            if (rawBody != null) uncalledText.Remove(pack + ":" + name);
             // Every argument is checked against the declared params just below, and an unknown one is a problem there.
             call.MarkAllRead();
             var known = new HashSet<string>(parameters.Select(p => p.Key));
@@ -485,14 +567,37 @@ namespace ExpeditionFramework.Core
             if (bare && parameters.Count == 0) call.Error(name + " takes no arguments");
             foreach (string key in call.Args.Keys.Where(k => k != "value" && !known.Contains(k))) call.Error("\"" + name + "\" has no parameter \"" + key + "\"");
             var values = new List<KeyValuePair<string, Value>>();
+            var textArgs = new Dictionary<string, string>();
             for (int i = 0; i < parameters.Count; i++)
             {
                 KeyValuePair<string, object> p = parameters[i];
+                if (p.Key.StartsWith("$", StringComparison.Ordinal))
+                {
+                    if (!TextParamName.IsMatch(p.Key)) continue;   // reported when declared
+                    bool given = call.Has(p.Key) || (bare && i == 0);
+                    object source = call.Has(p.Key) ? call.Args[p.Key] : bare && i == 0 ? call.Args["value"] : p.Value;
+                    // Only what the caller wrote is checked; a bad default was reported once, when the effect was declared.
+                    string text = source as string ?? (given ? null : "");
+                    if (text == null) { call.Error("\"" + p.Key + "\" is text: give a name like lower_level, not a number"); return s => { }; }
+                    if (text == "") { call.Error(name + " needs " + p.Key); return s => { }; }
+                    // Filling the bad default would add a second, confusing error at the call site on top of the one at the declaration.
+                    if (!given && !TextValue.IsMatch(text)) return s => { };
+                    if (given && !TextValue.IsMatch(text)) { call.Error("\"" + p.Key + "\" must be a-z, 0-9 or _ (got \"" + text + "\")"); return s => { }; }
+                    textArgs[p.Key.Substring(1)] = text;
+                    continue;
+                }
                 Value value;
                 if (call.Has(p.Key)) value = call.Value(p.Key, 0);
                 else if (bare && i == 0) value = call.Value("value", 0);
                 else value = ValueOf(p.Value, pack, at + ".params." + p.Key);
                 values.Add(new KeyValuePair<string, Value>(p.Key, value));
+            }
+            if (rawBody != null)
+            {
+                string qualified = pack + ":" + name;
+                if (!expanding.Add(qualified)) { call.Error(name + " calls itself through its text parameters"); return s => { }; }
+                try { body = new[] { Effect(Fill(rawBody, textArgs), pack, call.Path + ".do") }; }
+                finally { expanding.Remove(qualified); }
             }
             return s =>
             {
@@ -601,6 +706,12 @@ namespace ExpeditionFramework.Core
             }
             memoryReads.Clear();
             memoryWrites.Clear();
+            foreach ((string pack, string at) in uncalledText.Values)
+            {
+                current = pack;
+                Warn(at, "never called, so its body is not checked (text-parameter effects compile at each call)");
+            }
+            uncalledText.Clear();
             knownItemTags = null;
         }
 

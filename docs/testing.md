@@ -51,7 +51,7 @@ Exit codes: 0 clean, 1 on errors (or on warnings with `--strict`), 2 on bad argu
 ## Run
 
 ```bash
-dotnet run -c Release --no-build --project tools/EfSim -- run ../MyPack [--runs 200]
+dotnet run -c Release --no-build --project tools/EfSim -- run ../MyPack [--runs 200] [--digest]
 ```
 
 ```
@@ -65,6 +65,31 @@ ef-sim ef_showcase: all checks passed
 
 `run` reads the pack's `sim.json`, plays each row of its run matrix, prints one line per row, then runs the checks.
 `--runs` overrides every row's run count; small counts can miss rarely offered options.
+
+`--digest` adds one line per row after the final summary line, so the normal output is an exact prefix:
+
+```
+digest runs[0] night_market blade random 9b1f...
+```
+
+The hash covers each run's outcome, every run-log line (tone, roll text, text), the night-log lines, the memory the run
+ended with (0 and `""` count as unset), the reputation it changed, the credits left, the items still carried (sorted by
+id, with counts) and the ground pile in order. It leaves out run variables (`run.*`), so a refactor may rename a scratch
+variable without changing it. It also cannot see what the ef-sim's bridge does not model: the game's real inventory,
+item stats, sounds and anything else only the game shows. It reads the run and draws no random number, so a run plays
+the same with or without it.
+
+### Proving a refactor
+
+To show a change to a pack or to the framework left behaviour alone, capture before and after, at the committed seeds and
+run counts (no `--runs`):
+
+1. `lint --strict` prints the same text.
+2. `run` prints byte-identical output.
+3. `run --digest` prints identical `digest` lines.
+
+The table prints three percentages per row, and a wrong faction or a wrong night-log key can leave them unchanged, so the
+digest is the part that proves the rest, within what it covers (above). Any difference is a bug in the change, not noise.
 
 In the table, **cleared** is a run that ended `cleared` or with `run.cleared` above 0; **knocked out** ended
 `knocked_out`; **extracted** is any other ending, cleared runs included. A run stopped by a guard counts in none.
