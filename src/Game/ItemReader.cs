@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using ExpeditionFramework.Core;
@@ -10,6 +11,13 @@ namespace ExpeditionFramework.Game
         private const string AmmoType = "AMMUNITION";
         private const string FirearmType = "FIREARM";
         private const string MeleeType = "MELEE_WEAPON";
+        private const string WeaponType = "WEAPON";
+
+        /// <summary>The facts <see cref="ReadFacts"/> sets on every weapon, in the order the debug log prints them.</summary>
+        public static readonly string[] FactNames = { "cells", "reach", "breadth", "price", "kinds", "purposes" };
+
+        // The types EF already turns into tags; counting them would make every weapon read as more than a weapon.
+        private static readonly HashSet<string> TaggedTypes = new HashSet<string> { WeaponType, MeleeType, FirearmType };
 
         private readonly Content content;
         // One RunItem per gun or blade, and per kind of everything else, so state like a gun's magazine lasts the trip.
@@ -65,8 +73,39 @@ namespace ExpeditionFramework.Game
             item.Tags.Add(IsFirearm(weapon) ? "firearm" : "melee");
             if (IsFirearm(weapon) && Matching(weapon).Count > 0) item.Tags.Add("has_rounds");
             item.ApplyStats(content);
+            ReadFacts(weapon, item);
             if (IsFirearm(weapon)) ReadGun(weapon, item);
             return item;
+        }
+
+        /// <summary>
+        /// What the weapon's shape, price and game types say. ReadWeapon calls this after item_stats, as it does ReadGun, so a
+        /// pack can't mask the game's numbers. Shape is the item's own, without attachments. Price is the base price (unitValue): GetValue() adds what
+        /// the party, a trader and the stack size do, so the same knife would read differently at a counter. Purposes counts only
+        /// the game's major types, because the other types include grades like JUNK or MIDLINE that say nothing about other uses.
+        /// </summary>
+        public static void ReadFacts(GameItem weapon, RunItem item)
+        {
+            GridShape shape = weapon.shape;
+            (int reach, int breadth) = Footprint.Measure(shape.width, shape.height, (x, y) => shape.GetLocal(x, y) == 1);
+            List<string> types = weapon.GetGameItemType();
+            item.Set("cells", weapon.GetItemSize());
+            item.Set("reach", reach);
+            item.Set("breadth", breadth);
+            item.Set("price", (int)Math.Min(int.MaxValue, Math.Max(0L, weapon.unitValue)));
+            item.Set("kinds", types.Count(t => !TaggedTypes.Contains(t)));
+            item.Set("purposes", types.Count(t => t != WeaponType && TypeHelper.MAJOR_TYPES_LIST.Contains(t)));
+        }
+
+        /// <summary>One log line: the id, the facts, the shape grid (rows top first, 1 filled), the game types and the name.</summary>
+        public static string Describe(GameItem weapon, RunItem item)
+        {
+            GridShape shape = weapon.shape;
+            IEnumerable<string> rows = Enumerable.Range(0, shape.height)
+                .Select(y => new string(Enumerable.Range(0, shape.width).Select(x => shape.GetLocal(x, y) == 1 ? '1' : '0').ToArray()));
+            return "id=" + item.Id + " " + string.Join(" ", FactNames.Select(n => n + "=" + item.Get(n)))
+                + " width=" + shape.width + " height=" + shape.height + " shape=" + string.Join("/", rows)
+                + " types=" + string.Join(",", weapon.GetGameItemType()) + " name=" + weapon.GetDisplayName();
         }
 
         private void ReadGun(GameItem gun, RunItem item)

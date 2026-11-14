@@ -1,9 +1,12 @@
 # Weapon Facts From the Game (`cells`, `reach`, `breadth`, `price`, `kinds`, `purposes`) + Melee Measurement Command
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Author:** Claude Opus 5.5 (plan step)
 > **Parent:** User
 > **Source:** Direct request (human goal 2026-11-15: NER unified melee model, option "Opt1": EF reports raw melee facts, NER writes formulas in data)
+> **Completed:** 2026-11-15
+> **Walkthrough:** 2611150108-melee-weapon-facts-walkthrough.md
+> **Log:** 2611150108-melee-weapon-facts-log.md
 > **Related Projex:** 2611142108-sim-tally-and-intel-cap-plan.md (EF; parity-proof conventions reused) | a later NER plan (not yet written) consumes these facts: formula, curated overrides, fit
 > **Worktree:** Yes — repo clean (`main` @ `a985df6`), no `projex/*` branches, but the NER sprint is running `ef-sim` from the EF main checkout right now (`tools/EfSim/bin/Release/net8.0/ef-sim.exe` was locked at plan time, so `dotnet run` there fails with MSB3027). Editing `src/Core` in the main checkout would also change the `ef-sim` the sprint is using. A worktree has its own `bin/`, so neither problem arises. The csproj's relative `GameManaged` path breaks in a worktree, so the compile check passes it explicitly (Step 5).
 

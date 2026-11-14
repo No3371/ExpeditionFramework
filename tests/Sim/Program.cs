@@ -32,6 +32,7 @@ internal static class Program
         TestUnreadArgs();
         TestNotCarryingObjectForm();
         TestItemTags();
+        TestFootprint();
         TestLocaleParity();
         TestModEffectIsAPeer();
         TestPublicApi();
@@ -381,6 +382,18 @@ internal static class Program
         Check(w.Count == 0, "an item group is a known tag: " + string.Join("; ", w));
         w = WarningsIn(Uses("noisy", "\"item_stats\":{\"#loud\":{\"tags\":[\"noisy\"]}},"));
         Check(w.Count == 0, "an item_stats tag is known: " + string.Join("; ", w));
+    }
+
+    // An item's reach and breadth come from the box around its filled cells, whatever empty grid surrounds them.
+    private static void TestFootprint()
+    {
+        (int, int) Of(int width, int height, params (int X, int Y)[] cells) =>
+            Footprint.Measure(width, height, (x, y) => cells.Contains((x, y)));
+        Check(Of(4, 1, (0, 0), (1, 0), (2, 0), (3, 0)) == (4, 1), "a straight bar: " + Of(4, 1, (0, 0), (1, 0), (2, 0), (3, 0)));
+        Check(Of(1, 3, (0, 0), (0, 1), (0, 2)) == (3, 1), "an upright bar: " + Of(1, 3, (0, 0), (0, 1), (0, 2)));
+        Check(Of(3, 3, (0, 0), (1, 1), (2, 2)) == (3, 3), "a diagonal: " + Of(3, 3, (0, 0), (1, 1), (2, 2)));
+        Check(Of(5, 4, (1, 1), (2, 1), (3, 1)) == (3, 1), "empty grid around the cells: " + Of(5, 4, (1, 1), (2, 1), (3, 1)));
+        Check(Of(2, 2) == (0, 0), "nothing filled: " + Of(2, 2));
     }
 
     // Another locale is compared with English key by key, and by the {n} placeholders each text fills in.

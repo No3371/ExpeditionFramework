@@ -216,7 +216,7 @@ A template from another pack is `other_pack:name`.
 ## Debug panel
 
 `debug_kit` lists item ids. The game's debug panel then has an entry "Expeditions: give test kit (PACK)" that puts them in
-the inventory. Every area with `unlocked_by` also gets an "Expeditions: unlock AREA" entry.
+the inventory. Every area with `unlocked_by` also gets an "Expeditions: unlock AREA" entry. The framework adds "Expeditions: log melee weapon facts", which writes one line per melee weapon the game can make to the game's log (`Player.log`), starting `Melee facts:`, with the facts from [What the game reports](items.md#what-the-game-reports), its shape and its game types.
 
 ```json
 "debug_kit": ["kitchen_knife", "bandage_item", "crowbar"]

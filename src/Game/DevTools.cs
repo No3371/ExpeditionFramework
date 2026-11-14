@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using ExpeditionFramework.Core;
@@ -20,7 +21,51 @@ namespace ExpeditionFramework.Game
             }
         }
 
+        // Where the game keeps its melee weapons: most in their own directory, the tazer with the guns, a wrench in an unused one.
+        // Only these are built, not every item the game has: building thousands of items to find a dozen would be slow and would run
+        // factories nothing here needs.
+        private static readonly string[] WeaponDirectories = { "MeleeWeaponItemDirectory", "GunsItemDirectory", "UnusedDirectory" };
+
+        /// <summary>Entries for the framework itself, whatever packs are installed.</summary>
+        public static void AddFramework(Content content)
+        {
+            ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: log melee weapon facts", () => LogMeleeFacts(content));
+        }
+
         public static void RemoveAll() => ModHelper.RemoveDebugFunctions(ModEntry.ModId);
+
+        // One log line per melee weapon the game can make, read by the same code a run uses, for fitting formulas over the facts.
+        // Each item is built fresh from its directory, so the line shows it as the game first makes it, not as one carried and aged.
+        private static void LogMeleeFacts(Content content)
+        {
+            var reader = new ItemReader(content);
+            var ids = new SortedSet<string>(content.ItemStats.Where(e => !e.Key.StartsWith("#") && e.Value.Tags.Contains("melee")).Select(e => e.Key));
+            List<string> loaded = DirectoryMaster.GetDictionaryClassNameList<GameItem>();
+            foreach (string directory in WeaponDirectories)
+            {
+                if (loaded.Contains(directory)) ids.UnionWith(DirectoryMaster.GetIdentifierList<GameItem>(directory));
+                else ModEntry.Log.Log("Melee facts: directory " + directory + " is not loaded");
+            }
+            int count = 0;
+            foreach (string id in ids)
+            {
+                try
+                {
+                    GameItem weapon = DirectoryMaster.Create<GameItem>(id);
+                    if (weapon == null) { ModEntry.Log.Log("Melee facts: " + id + " is not a game item"); continue; }
+                    if (!reader.IsMelee(weapon)) continue;
+                    var item = new RunItem { Id = id };
+                    ItemReader.ReadFacts(weapon, item);
+                    ModEntry.Log.Log("Melee facts: " + ItemReader.Describe(weapon, item));
+                    count++;
+                }
+                catch (Exception ex)
+                {
+                    ModEntry.Log.Warning("Melee facts: " + id + " failed: " + ex.Message);
+                }
+            }
+            StoreUIManager.Instance.Notify(count + " melee weapons written to the game log.");
+        }
 
         private static void GiveKit(List<string> kit)
         {

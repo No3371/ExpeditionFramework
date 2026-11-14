@@ -49,6 +49,21 @@ each. Tags: `weapon`; `firearm` or `melee`; `in_hand` when in one of the two han
 matching rounds carried. Guns also report `firepower`, `accuracy`, `recoil`, `ergonomics`, `reliability` and
 `suppressed` (1 or 0), and their `capacity` is the `item_stats` capacity plus the `capacity_bonus` of every attached part.
 
+Every weapon also reports what the game says about its size, price and uses, all whole numbers:
+
+| Prop | What it is |
+|---|---|
+| `cells` | Grid cells the item fills in the bag (attachments not counted) |
+| `reach` | The longer side of the box around those cells: a 4-long crowbar has 4, whichever way it lies |
+| `breadth` | The shorter side of that box. A straight item has 1; a diagonal one has about its reach |
+| `price` | The game's base price, before traders, party and condition change it |
+| `kinds` | How many game item types it has besides weapon, melee weapon and firearm (including grades like junk) |
+| `purposes` | How many of the game's main uses it has besides weapon: tool, household good, material and so on |
+
+The framework's own data doesn't use them; a pack can, for example `"melee_sides": "2 + item.cells / 2"` in its `values`.
+They are set after `item_stats`, so an `item_stats` number with one of these names is replaced in the game. To see them
+for every melee weapon, use the debug panel's "Expeditions: log melee weapon facts" ([Debug panel](packs.md#debug-panel)).
+
 **Everything else** is one stack per item id, with `item.count` the number carried. A **round** (ammunition with a
 caliber; an ammo box is not one) is tagged `ammo` and has `kind`: 0 standard, 1 armor piercing (also tagged
 `armor_piercing`), 2 non-lethal (also tagged `non_lethal`). Ammo boxes carried are opened on arrival.

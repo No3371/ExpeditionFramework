@@ -165,7 +165,7 @@ Unknown keys are errors, and numbers must be whole.
 **Kits.** A kit has `credits` (default 0) and `items`. Each item has `id` (required), `count` (default 1), `tags` and
 `props` (numbers, such as `"loaded": 4`). Tags may start with `#`. A kit item's tags and props are layered over the pack's
 `item_stats` for that item, the kit's props winning. Give each weapon the tags the game would (`weapon`, `melee` or
-`firearm`, `in_hand`).
+`firearm`, `in_hand`). If the pack reads a weapon's [game facts](items.md#what-the-game-reports) (`cells`, `reach`, `breadth`, `price`, `kinds`, `purposes`), give them as props too: a kit item has no shape or price, so they read 0.
 
 **Rows.** A row has `area`, `kit` and `runs` (above 0), all required, and optional `bot` (default `random`), `seed`
 (default 42 plus the row's index) and [`memory`](#memory). Rows also take `game`, `days`, `intel` and `expect`; see

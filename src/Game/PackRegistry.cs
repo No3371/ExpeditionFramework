@@ -104,6 +104,7 @@ namespace ExpeditionFramework.Game
                 }
                 DevTools.Add(content, pack);
             }
+            DevTools.AddFramework(content);
             foreach (KeyValuePair<string, List<string>> other in problems.Where(p => !packs.Contains(p.Key) && p.Value.Count > 0))
             {
                 foreach (string problem in other.Value) ModEntry.Log.Warning(problem);
