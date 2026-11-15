@@ -67,7 +67,7 @@ Story syntax is ZoH Framework's; its README is the reference for it, and for the
 Yard rumours
 uses: ["expedition_framework"];
 smalltalk: { "chance": 20, "at": ["arrive"] };
-required_verbs: ["ps.entry", "ef.rumour"];
+required_verbs: ["ps.entry"];
 ===
 /ps.entry; -> *entry;
 /jump ?, *entry;
@@ -104,13 +104,16 @@ Letting the player decide, with a reserved card:
 /exit;
 ```
 
-This story also lists `ef.tell` in `required_verbs`.
+`ef.tell` stays out of `required_verbs` as well.
 
 ## `required_verbs`
 
-List the verbs the story needs by name, as above. Don't write `required_verbs: "*"` in a story that uses `ef.*` verbs:
-with `"*"` ZoH Framework refuses to load the story when the Expedition Framework is missing or disabled. With the verbs
-listed, a missing provider only skips those lines, `*key` stays `nothing`, and the story above ends quietly.
+List only the verbs the story can't do without, as above, and leave the `ef.*` verbs out. ZoH Framework refuses to load a
+story when a verb in its `required_verbs` list is missing, and the `ef.*` verbs are missing whenever the Expedition
+Framework is missing or disabled. `required_verbs: "*"` requires every verb the story calls, so it fails the same way.
+
+With the `ef.*` verbs left out of the list, a missing provider only skips their lines, with a warning in the log.
+`*key` stays `nothing`, and the story above ends quietly.
 
 ## Checking it in the game
 
