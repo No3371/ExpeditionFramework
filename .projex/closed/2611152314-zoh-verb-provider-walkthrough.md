@@ -280,7 +280,7 @@ All accepted by the orchestrator as in scope. No plan update needed.
 
 ### Immediate Follow-ups
 - [ ] Run J1–J4 in game once the whole set is installed.
-- [ ] J5: recheck `docs/zoh.md` examples against ZF's README after 2611152320-zoh-customer-small-talk-plan.md lands.
+- [x] J5: recheck `docs/zoh.md` examples against ZF's README after 2611152320-zoh-customer-small-talk-plan.md lands. Done: 2611160623-zoh-doc-smalltalk-recheck-patch.md (quoted `smalltalk` map keys, `/exit;` at entry ends).
 - [ ] Decide the ZF install step for the api dll (Issue 1).
 
 ### Future Considerations
