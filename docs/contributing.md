@@ -13,6 +13,10 @@ This builds the framework and its API and installs them, with `manifest.xml`, `L
 `Modding/ExpeditionFramework` inside the game folder, and finds the game's assemblies at
 `../../Probably Stolen_Data/Managed/`.
 
+The game build also needs the installed ZoH Framework's `ZohFramework.Api.dll` (`Mods/ZohFramework/`). It is copied
+as is into the install, never rebuilt, because every mod in the game shares the first copy that loads. Elsewhere pass
+`-p:ZohApi=<path to ZohFramework.Api.dll>`. `tests/Sim` and `ef-sim` don't need it.
+
 From anywhere else, such as a git worktree, pass both folders:
 
 ```bash

@@ -1,6 +1,12 @@
+using ZohFramework.Api;
+
 namespace ExpeditionFramework.Game
 {
-    public class ModEntry : IMod
+    // IStoryExtension makes the framework a ZoH verb provider: a story that lists expedition_framework in uses: gets the
+    // ef.* verbs. ZoH Framework calls RegisterStory itself, for each such story; without ZoH Framework nothing calls it and
+    // the api dll shipped here just sits there. That is why the manifest names no prerequisite: a prerequisite would make
+    // every expedition pack need ZoH Framework installed, for verbs most of them never use.
+    public class ModEntry : IMod, IStoryExtension
     {
         public const string ModId = "expedition_framework";
 
@@ -27,5 +33,7 @@ namespace ExpeditionFramework.Game
             HandsWindow.Stop();
             PackRegistry.Stop();
         }
+
+        public void RegisterStory(IStoryRegistrar story) => StoryProvider.Register(story);
     }
 }

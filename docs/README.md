@@ -26,6 +26,7 @@ Start with [Getting started](getting-started.md): it builds a small working pack
 | [Memory across nights](memory.md) | `memory.NAME`, `memory.$NAME`, reading other packs' memory |
 | [Game reads and reputation](game.md) | `game.day`, `game.clears`, `game.rep`, and the `reputation` effect |
 | [Intel cards](intel.md) | Daily rumours on the map and using them in a run |
+| [Telling intel through ZoH](zoh.md) | `uses:`, `/ef.rumour`, `/ef.tell`: customers who tell a pack's told intel |
 | [Testing with ef-sim](testing.md) | `lint`, `run`, `sim.json`, bots |
 
 ## C# and the framework itself

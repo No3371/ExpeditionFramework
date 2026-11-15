@@ -10,6 +10,7 @@
   </GameVersions>
   <Prerequisites />
   <Assemblies>
+    <Assembly>ZohFramework.Api.dll</Assembly>
     <Assembly>ExpeditionFramework.Api.dll</Assembly>
     <Assembly>ExpeditionFramework.dll</Assembly>
   </Assemblies>

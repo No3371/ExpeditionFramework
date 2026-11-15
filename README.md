@@ -81,5 +81,6 @@ Everything else is in [docs/](docs/README.md):
 - [Rooms and events](docs/rooms-events.md), [Actions](docs/actions.md), [Combat](docs/combat.md),
   [Items, loot and trade](docs/items.md)
 - Reference: [Expressions](docs/expressions.md), [Effects](docs/effects.md), [Text](docs/text.md),
-  [Memory](docs/memory.md), [Game reads and reputation](docs/game.md), [Intel cards](docs/intel.md)
+  [Memory](docs/memory.md), [Game reads and reputation](docs/game.md), [Intel cards](docs/intel.md),
+  [Telling intel through ZoH](docs/zoh.md)
 - [Testing with ef-sim](docs/testing.md), [C# API](docs/csharp-api.md)

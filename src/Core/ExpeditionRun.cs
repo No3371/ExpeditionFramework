@@ -1362,6 +1362,16 @@ namespace ExpeditionFramework.Core
             return at;
         }
 
+        /// <summary>
+        /// The text key a told card is worded by: <paramref name="template"/> with {area}, {slot} and {pick} filled in, the
+        /// area and pick without their pack prefix, as key templates elsewhere name picks (run.$pick).
+        /// </summary>
+        public static string CardKey(string template, string areaId, string slotId, string pick)
+        {
+            string Bare(string id) => id == null ? "" : id.Substring(id.IndexOf(':') + 1);
+            return (template ?? "").Replace("{area}", Bare(areaId)).Replace("{slot}", slotId ?? "").Replace("{pick}", Bare(pick));
+        }
+
         private static int HowMany(IntelSlot slot, Func<int, int> roll)
         {
             int r = roll(100);

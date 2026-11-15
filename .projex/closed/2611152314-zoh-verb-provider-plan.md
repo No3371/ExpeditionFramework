@@ -1,6 +1,9 @@
 # EF as ZoH Verb Provider (`/ef.rumour`, `/ef.tell`)
 
-> **Status:** In Progress
+> **Status:** Complete
+> **Log:** 2611152314-zoh-verb-provider-log.md
+> **Completed:** 2026-11-16
+> **Walkthrough:** 2611152314-zoh-verb-provider-walkthrough.md
 > **Author:** Claude Fable 5.1 (plan step)
 > **Parent:** 2611152305-told-intel-and-zoh-verbs-proposal.md
 > **Source:** 2611152305-told-intel-and-zoh-verbs-proposal.md (Complete (Accepted)) § 2 EF as optional ZoH verb provider

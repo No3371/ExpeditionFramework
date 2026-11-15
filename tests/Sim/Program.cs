@@ -48,6 +48,7 @@ internal static class Program
         TestMapMemory();
         TestIntelMax();
         TestToldIntel();
+        TestCardKey();
         TestGameReads();
         TestReputation();
         TestMemoryWarnings();
@@ -914,6 +915,22 @@ internal static class Program
         Check(IntelRoller.TellCandidates(never, logged, zeroMap.Root, zero).Count == 0 && Dice() == "100" && zero.Budget["told1"] == 0,
             "a budget rolled as 0 gives no candidate");
         Check(IntelRoller.TellCandidates(never, logged, zeroMap.Root, zero).Count == 0 && Dice() == "", "a budget of 0 is kept, not rolled again");
+    }
+
+    // A told card's text key is its template with {area}, {slot} and {pick} filled in; the area and pick lose their pack
+    // prefix, so one template words the same card in any pack.
+    private static void TestCardKey()
+    {
+        string Key(string template) => IntelRoller.CardKey(template, "p:a", "s", "p:fence");
+        Check(Key("rumour_{pick}") == "rumour_fence", "{pick} is the pick without its pack: " + Key("rumour_{pick}"));
+        Check(Key("{area}_{slot}_{pick}") == "a_s_fence", "all three placeholders fill in: " + Key("{area}_{slot}_{pick}"));
+        Check(Key("{pick}_{pick}") == "fence_fence", "a placeholder fills in wherever it stands: " + Key("{pick}_{pick}"));
+        Check(Key("plain") == "plain", "a template with no placeholder is the key as written: " + Key("plain"));
+        Check(Key(null) == "", "no template gives an empty key: " + Key(null));
+        string bare = IntelRoller.CardKey("{area}_{slot}_{pick}", "a", "s", "fence");
+        Check(bare == "a_s_fence", "ids without a pack prefix pass through: " + bare);
+        string none = IntelRoller.CardKey("{area}_{slot}_{pick}", null, null, null);
+        Check(none == "__", "missing ids fill in as nothing: " + none);
     }
 
     // game.rep.FACTION reads reputation whole and game.rep_exact.FACTION in hundredths; the reputation effect changes it

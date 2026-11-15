@@ -7,6 +7,8 @@
     <LangVersion>latest</LangVersion>
     <GameManaged>..\..\Probably Stolen_Data\Managed\</GameManaged>
     <InstallDir>..\..\Mods\ExpeditionFramework\</InstallDir>
+    <!-- The installed ZoH Framework api, copied as is: every mod shares the first copy the game loads, so it is never rebuilt here. -->
+    <ZohApi>..\..\Mods\ZohFramework\ZohFramework.Api.dll</ZohApi>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
@@ -30,12 +32,20 @@
     <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManaged)Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="ZohFramework.Api"><HintPath>$(ZohApi)</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="CheckZohApi" BeforeTargets="ResolveAssemblyReferences" Condition="!Exists('$(ZohApi)')">
+    <Error Text="ZohFramework.Api.dll not found at $(ZohApi). Install ZoH Framework into Mods\ZohFramework\ or pass -p:ZohApi=&lt;path to its ZohFramework.Api.dll&gt;." />
+  </Target>
+
   <Target Name="InstallMod" AfterTargets="Build">
     <ItemGroup>
       <Localization Include="Localization\*.csv" />
       <Packs Include="ExpeditionFramework\*.json" />
     </ItemGroup>
-    <Copy SourceFiles="$(TargetPath);$(OutDir)ExpeditionFramework.Api.dll;manifest.xml" DestinationFolder="$(InstallDir)" />
+    <Copy SourceFiles="$(TargetPath);$(OutDir)ExpeditionFramework.Api.dll;$(OutDir)ZohFramework.Api.dll;manifest.xml" DestinationFolder="$(InstallDir)" />
     <Copy SourceFiles="@(Localization)" DestinationFolder="$(InstallDir)Localization\" />
     <Copy SourceFiles="@(Packs)" DestinationFolder="$(InstallDir)ExpeditionFramework\" />
   </Target>

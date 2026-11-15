@@ -89,7 +89,7 @@ day was already rolled, the cards its told slots rolled that morning stay, and t
 The debug panel's Modding category has a stand-in teller for each pack with a told slot: "Expeditions: claim intel (pack)"
 claims it for the session, and "Expeditions: tell intel (pack)" tells one card and writes what it told to the game log.
 
-The ZoH verbs that tell intel are described with the framework's ZoH support.
+The ZoH verbs that tell are in [Telling intel through ZoH](zoh.md).
 
 ## Limiting the cards
 
