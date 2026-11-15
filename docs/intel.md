@@ -31,6 +31,7 @@ Each entry in `intel` is a **slot**:
 | `tone` | The card's tone: `good`, `bad` or `mixed` (default) |
 | `good` | Ids from the pool whose cards show as `good` whatever the slot's tone |
 | `when` | A condition; while it doesn't hold, the slot picks nothing that day |
+| `told` | `true`: when a mod that tells intel claims this pack, the slot's cards are handed out one at a time as customers tell them, and don't appear at the day's roll. Without a teller it rolls as usual. Default `false`. [Told slots](#told-slots) |
 
 Picks from one slot are different ids. A slot can show at most one card per possible pick: one with `chance`,
 `counts` length minus one with `counts`.
@@ -52,6 +53,43 @@ Lint can't check keys built this way. Every id in the pool needs its keys.
 Intel is rolled once per day, the first time the game asks for the area's cards that day, and kept until the next day. `when` is
 checked at that moment, on the map, where `run.` reads 0 but `memory.` and [`game.`](game.md) work. So what a run
 writes to memory tonight changes the cards from the next day.
+
+## Told slots
+
+A slot with `"told": true` is one a customer can tell the player about during the day, instead of a card that is on the
+map from the morning:
+
+```json
+{ "id": "rumour", "pool": "rumours", "told": true, "counts": [40, 40, 20],
+  "title": "sm_rumour_title", "description": "sm_rumour_desc" }
+```
+
+Nothing changes until a mod that tells intel **claims** the pack. Unclaimed, a told slot rolls with the day like any other,
+so a pack played without a teller mod keeps all its intel. Once the pack is claimed:
+
+- The day's roll skips the pack's told slots. They show no card and draw no dice, like a slot whose `when` fails.
+- Each time the teller tells, one card of one told slot is rolled right then and appears on the area's map card at once.
+- The slot's own `chance` or `counts` is its budget for the day: how many cards it can hand out, rolled the first time
+  the slot is asked that day. A slot with `"chance": 60` has one card to tell on 60% of days and none on the rest.
+- `when` is checked at the moment of telling, not in the morning, so memory or [`game.`](game.md) values that change
+  during the day count.
+- `intel_max` counts the cards already showing in the area, rolled and told alike. An area at its limit tells nothing more.
+- A slot names each id in its pool at most once a day.
+- An area the player hasn't discovered yet (locked by `unlocked_by` or hidden by `hidden_when`) is never told about.
+
+Nothing is hidden and nothing carries over: a card that wasn't told doesn't exist, there is no rolled card waiting out of
+sight, and the next day every told slot starts again with a new budget. A told card is an ordinary card from then on:
+`intel(id)`, `schedule` with `intel` and `spawn` with `intel` see it in a run that day, and it survives a reload.
+
+A claim is made by the teller mod each time the game loads, before the day's first roll. If a pack is claimed after its
+day was already rolled, the cards its told slots rolled that morning stay, and telling starts properly the next day.
+
+`ef-sim` has no teller: with `"intel": true` it rolls told slots with the rest, as if every card had been told.
+
+The debug panel's Modding category has a stand-in teller for each pack with a told slot: "Expeditions: claim intel (pack)"
+claims it for the session, and "Expeditions: tell intel (pack)" tells one card and writes what it told to the game log.
+
+The ZoH verbs that tell intel are described with the framework's ZoH support.
 
 ## Limiting the cards
 

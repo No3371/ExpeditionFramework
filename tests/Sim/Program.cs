@@ -47,6 +47,7 @@ internal static class Program
         TestMemory();
         TestMapMemory();
         TestIntelMax();
+        TestToldIntel();
         TestGameReads();
         TestReputation();
         TestMemoryWarnings();
@@ -797,6 +798,122 @@ internal static class Program
         Check(!memoryRead.Any(w => w.Contains("run.*")), "intel_max reading memory.last_run.n is not a run. read: " + string.Join("; ", memoryRead));
         List<string> repeated = ProblemsIn(Pack("").Replace(@"""id"": ""last""", @"""id"": ""first"""));
         Check(repeated.Count == 1 && repeated[0].Contains("repeats intel id") && repeated[0].Contains("intel[2].id"), "a repeated intel slot id is one problem at the second slot: " + string.Join("; ", repeated));
+    }
+
+    // A told slot rolls with the day until its pack is claimed; then the day's roll skips it without dice and its cards come
+    // one at a time from TellCandidates and Tell, against a day state the caller keeps: the slot's own dice are its budget,
+    // rolled once, and when, intel_max and the pool are checked at the moment of telling.
+    private static void TestToldIntel()
+    {
+        const string ToldOne = @"""told"": true, ""chance"": 100";
+        const string Pack = @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""enter"": [ { ""set"": { ""var"": ""memory.cap"", ""value"": 1 } }, { ""set"": { ""var"": ""memory.open"", ""value"": 1 } } ] }, ""r2"": { ""text"": ""k"" }, ""r3"": { ""text"": ""k"" } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ],
+            ""intel_max"": ""memory.cap"",
+            ""pools"": { ""leads"": [ ""r"", ""r2"", ""r3"" ] },
+            ""intel"": [
+              { ""id"": ""first"", ""pool"": ""leads"", ""chance"": 100, ""title"": ""k"", ""description"": ""k"" },
+              { ""id"": ""told1"", ""pool"": ""leads"", " + ToldOne + @", ""title"": ""k"", ""description"": ""k"" },
+              { ""id"": ""told2"", ""pool"": ""leads"", ""told"": true, ""counts"": [ 0, 0, 100 ], ""when"": ""memory.open >= 1"", ""title"": ""k"", ""description"": ""k"" },
+              { ""id"": ""last"", ""pool"": ""leads"", ""chance"": 100, ""title"": ""k"", ""description"": ""k"" }
+            ] } }
+        }";
+        AreaDef Area(string packId, string json, out string all)
+        {
+            var set = new PackSet(new Registry());
+            set.Add(packId, "ExpeditionFramework/main.json", f => json);
+            Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
+            all = string.Join("; ", problems.Values.SelectMany(l => l).Concat(warnings.Values.SelectMany(l => l)));
+            bool clean = problems.Values.All(l => l.Count == 0) && warnings.Values.All(l => l.Count == 0);
+            return clean ? content.Areas[packId + ":a"] : null;
+        }
+
+        AreaDef area = Area("t", Pack, out string all);
+        Check(area != null, "a pack with told slots loads cleanly: " + all);
+        List<string> wrongType = ProblemsIn(Pack.Replace(ToldOne, @"""told"": ""yes"", ""chance"": 100"));
+        Check(wrongType.Count == 1 && wrongType[0].Contains("intel[1].told") && wrongType[0].Contains("must be true or false"),
+            "told that isn't true or false is one problem at the key: " + string.Join("; ", wrongType));
+        if (area == null) return;
+        IntelSlot told1 = area.Intel[1], told2 = area.Intel[2];
+        Check(!area.Intel[0].Told && told1.Told && told2.Told && !area.Intel[3].Told, "told defaults to false and reads true where set");
+
+        var store = new MemoryStore();
+        var map = new MapContext(area.Id, (p, k, a) => k, name => 0, store);
+        var sides = new List<int>();
+        Func<int, int> logged = n => { sides.Add(n); return 1; };
+        string Dice() { string log = string.Join(",", sides); sides.Clear(); return log; }
+        string Ids(IEnumerable<IntelSlot> slots) => string.Join(",", slots.Select(s => s.Id));
+        string Picks(Dictionary<string, List<int>> rolled) => string.Join(" ", rolled.Select(p => p.Key + ":" + string.Join(",", p.Value)));
+
+        store.Set("t", "cap", 9);
+        store.Set("t", "open", 1);
+        Dictionary<string, List<int>> three = IntelRoller.Roll(area, logged, map.Root);
+        string threeDice = Dice();
+        Dictionary<string, List<int>> unclaimed = IntelRoller.Roll(area, logged, map.Root, false);
+        string unclaimedDice = Dice();
+        Check(threeDice == unclaimedDice && Picks(three) == Picks(unclaimed), "the roll without the told argument is the unclaimed roll: " + threeDice + " vs " + unclaimedDice);
+        Check(three["told1"].Count == 1 && three["told2"].Count == 2 && threeDice == "100,3,100,3,100,3,2,100,3",
+            "unclaimed, a told slot rolls like any other: " + Picks(three) + " dice " + threeDice);
+        Dictionary<string, List<int>> claimed = IntelRoller.Roll(area, logged, map.Root, true);
+        string claimedDice = Dice();
+        Check(claimed.ContainsKey("told1") && claimed["told1"].Count == 0 && claimed.ContainsKey("told2") && claimed["told2"].Count == 0,
+            "claimed, a told slot stays a key with no picks: " + Picks(claimed));
+        Check(claimedDice == "100,3,100,3" && claimed["first"].Count == 1 && claimed["last"].Count == 1,
+            "claimed, told slots draw no dice and the others draw their own: " + claimedDice);
+
+        store.Set("t", "open", 0);
+        var day = new IntelRoller.ToldDay();
+        List<IntelSlot> candidates = IntelRoller.TellCandidates(area, logged, map.Root, day);
+        Check(Ids(candidates) == "told1" && Dice() == "100", "a told slot whose when fails is no candidate and rolls no budget: " + Ids(candidates));
+        candidates = IntelRoller.TellCandidates(area, logged, map.Root, day);
+        Check(Ids(candidates) == "told1" && Dice() == "" && day.Budget["told1"] == 1 && !day.Budget.ContainsKey("told2"),
+            "a slot's budget is rolled once a day and kept: " + Ids(candidates));
+
+        store.Set("t", "open", 1);
+        candidates = IntelRoller.TellCandidates(area, logged, map.Root, day);
+        Check(Ids(candidates) == "told1,told2" && Dice() == "100" && day.Budget["told2"] == 2,
+            "when is checked at the moment of telling, and the slot rolls its budget then: " + Ids(candidates));
+
+        int at = IntelRoller.Tell(area, told1, n => 1, day);
+        Check(at == 0 && string.Join(",", day.ShownOf(told1)) == "0" && day.Budget["told1"] == 0, "a tell records its position and charges the budget: " + at);
+        Check(Ids(IntelRoller.TellCandidates(area, logged, map.Root, day)) == "told2" && Dice() == "", "a slot with no budget left is no candidate");
+        int one = IntelRoller.Tell(area, told2, n => 1, day), two = IntelRoller.Tell(area, told2, n => 1, day);
+        Check(one == 0 && two == 1 && day.Budget["told2"] == 0, "a slot's tells name different positions: " + one + "," + two);
+        Check(IntelRoller.TellCandidates(area, logged, map.Root, day).Count == 0 && Dice() == "", "nothing is left once every budget is spent");
+
+        var capped = new IntelRoller.ToldDay();
+        capped.Shown["first"] = new List<int> { 0 };
+        capped.Shown["last"] = new List<int> { 1 };
+        store.Set("t", "open", 0);
+        store.Set("t", "cap", 2);
+        Check(IntelRoller.TellCandidates(area, logged, map.Root, capped).Count == 0 && Dice() == "", "an area at its intel_max tells nothing and rolls no budget");
+        store.Set("t", "cap", 3);
+        Check(Ids(IntelRoller.TellCandidates(area, logged, map.Root, capped)) == "told1" && Dice() == "100", "under intel_max, counting rolled cards, a told slot can tell");
+        IntelRoller.Tell(area, told1, n => 1, capped);
+        store.Set("t", "open", 1);
+        Check(IntelRoller.TellCandidates(area, logged, map.Root, capped).Count == 0 && Dice() == "", "a told card counts toward intel_max");
+
+        store.Set("t", "cap", 9);
+        var spent = new IntelRoller.ToldDay();
+        spent.Shown["told1"] = new List<int> { 0, 1, 2 };
+        Check(IntelRoller.TellCandidates(area, logged, map.Root, spent, "told1").Count == 0 && Dice() == "", "a slot whose pool is all shown is no candidate and rolls no budget");
+
+        var filtered = new IntelRoller.ToldDay();
+        Check(Ids(IntelRoller.TellCandidates(area, logged, map.Root, filtered, "told2")) == "told2" && Dice() == "100" && !filtered.Budget.ContainsKey("told1"),
+            "a slot id limits candidates to that slot");
+        Check(IntelRoller.TellCandidates(area, logged, map.Root, filtered, "nope").Count == 0 && Dice() == "", "an unknown slot id gives no candidates");
+        Check(IntelRoller.TellCandidates(area, logged, map.Root, filtered, "first").Count == 0 && Dice() == "", "a slot that isn't told is never a candidate");
+
+        AreaDef never = Area("z", Pack.Replace(ToldOne, @"""told"": true, ""chance"": 0"), out all);
+        Check(never != null, "a told slot with chance 0 loads cleanly: " + all);
+        if (never == null) return;
+        var zeroStore = new MemoryStore();
+        zeroStore.Set("z", "cap", 9);
+        var zeroMap = new MapContext(never.Id, (p, k, a) => k, name => 0, zeroStore);
+        var zero = new IntelRoller.ToldDay();
+        Check(IntelRoller.TellCandidates(never, logged, zeroMap.Root, zero).Count == 0 && Dice() == "100" && zero.Budget["told1"] == 0,
+            "a budget rolled as 0 gives no candidate");
+        Check(IntelRoller.TellCandidates(never, logged, zeroMap.Root, zero).Count == 0 && Dice() == "", "a budget of 0 is kept, not rolled again");
     }
 
     // game.rep.FACTION reads reputation whole and game.rep_exact.FACTION in hundredths; the reputation effect changes it

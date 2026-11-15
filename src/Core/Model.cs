@@ -291,6 +291,11 @@ namespace ExpeditionFramework.Core
         public HashSet<string> GoodPicks = new HashSet<string>();
         /// <summary>Whether the street talks about this at all today, checked on the map when the day is rolled. Null means always.</summary>
         public Condition When;
+        /// <summary>
+        /// Whether a customer tells this slot's cards one at a time (IntelRoller.Tell) when something has claimed the pack. While
+        /// nothing has, the slot rolls with the day like any other, so a pack never loses intel for lack of a teller.
+        /// </summary>
+        public bool Told;
 
         public int MaxPicks => Counts != null ? Counts.Length - 1 : 1;
     }

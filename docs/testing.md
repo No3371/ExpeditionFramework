@@ -255,7 +255,7 @@ By default every run is a separate night on the bridge's game values with no int
 |---|---|
 | `game` | `game.NAME` values for this row only, laid over `bridge.game` (same forms: whole number or `"coin"`). A row's `rep.F` or `rep_exact.F` replaces both spellings of that faction from the bridge |
 | `days` | `true`: the row's nights follow each other. `game.day` starts at the row's (or bridge's) `day`, default 0, and goes up 1 a night; reputation a night changes stays for the next. Pair with `memory.carry` for a save that lasts the same nights |
-| `intel` | `true`: each night rolls the area's intel as the map does, from its own random, against that night's game and memory, and the run sees it in `intel(id)` and `schedule` with `intel` |
+| `intel` | `true`: each night rolls the area's intel as the map does, from its own random, against that night's game and memory, and the run sees it in `intel(id)` and `schedule` with `intel`. [Told slots](intel.md#told-slots) roll with the rest: the sim counts every card as told |
 | `expect` | After the row's last night: `rep.FACTION` / `rep_exact.FACTION` (the reputation that night ended with) and `intel.SLOT` (how many nights the slot named anything, counted after the area's `intel_max`; needs `"intel": true`). A whole number or `{ "min", "max" }` |
 
 Rows without these keys play as before: separate nights, the bridge's values, no intel. `--runs` changes how many

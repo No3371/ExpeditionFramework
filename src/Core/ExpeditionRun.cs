@@ -1261,7 +1261,14 @@ namespace ExpeditionFramework.Core
         /// start: that would run on every check and let a card appear or vanish mid-day as memory changes. Then, if the area has
         /// <c>intel_max</c>, keeps that many picks in slot order and drops the rest.
         /// </summary>
-        public static Dictionary<string, List<int>> Roll(AreaDef area, Func<int, int> roll, IScope scope)
+        public static Dictionary<string, List<int>> Roll(AreaDef area, Func<int, int> roll, IScope scope) => Roll(area, roll, scope, false);
+
+        /// <summary>
+        /// As above; with <paramref name="toldOnDemand"/>, told slots pick nothing and roll no dice here, like gated ones: their
+        /// cards come one at a time from <see cref="Tell"/>. Without it a told slot rolls like any other, so a pack with no
+        /// teller keeps its intel.
+        /// </summary>
+        public static Dictionary<string, List<int>> Roll(AreaDef area, Func<int, int> roll, IScope scope, bool toldOnDemand)
         {
             var result = new Dictionary<string, List<int>>();
             foreach (IntelSlot slot in area.Intel)
@@ -1270,6 +1277,7 @@ namespace ExpeditionFramework.Core
                 // Every slot is a key, including gated and poolless ones: IntelCards.Rolled indexes the result for each slot,
                 // so registering after the early continues below would throw KeyNotFoundException in the game.
                 result[slot.Id] = picks;
+                if (toldOnDemand && slot.Told) continue;
                 if (slot.When != null && !slot.When(scope)) continue;
                 if (!area.Pools.TryGetValue(slot.Pool, out List<string> pool)) continue;
                 var open = Enumerable.Range(0, pool.Count).ToList();
@@ -1295,6 +1303,63 @@ namespace ExpeditionFramework.Core
                 if (picks.Count > left) picks.RemoveRange(left, picks.Count - left);
                 left -= picks.Count;
             }
+        }
+
+        /// <summary>
+        /// One area's told intel for the day, kept by the caller: what each slot has shown or reserved so far (rolled picks
+        /// included, since intel_max counts them too) and how many cards each told slot may still hand out. A slot missing
+        /// from <see cref="Budget"/> has not rolled its dice yet.
+        /// </summary>
+        public sealed class ToldDay
+        {
+            public readonly Dictionary<string, int> Budget = new Dictionary<string, int>();
+            public readonly Dictionary<string, List<int>> Shown = new Dictionary<string, List<int>>();
+
+            public int ShownCount => Shown.Values.Sum(s => s.Count);
+
+            public List<int> ShownOf(IntelSlot slot)
+            {
+                if (!Shown.TryGetValue(slot.Id, out List<int> shown)) Shown[slot.Id] = shown = new List<int>();
+                return shown;
+            }
+        }
+
+        /// <summary>
+        /// The told slots that can hand out a card now: when holds, an unshown pool position is left, the area is under its
+        /// intel_max counting every card shown today, and the slot's daily budget is left. The budget is the slot's own dice
+        /// (chance or counts), rolled the first time the slot gets this far in a day and kept in <paramref name="day"/>, so a
+        /// told slot hands out at most what it would have shown at the day's roll. The cheap checks run before the dice so a
+        /// slot that cannot show anyway draws none. <paramref name="slotId"/> limits to one slot.
+        /// </summary>
+        public static List<IntelSlot> TellCandidates(AreaDef area, Func<int, int> roll, IScope scope, ToldDay day, string slotId = null)
+        {
+            var candidates = new List<IntelSlot>();
+            int limit = area.IntelMax != null ? Math.Max(0, area.IntelMax(scope)) : int.MaxValue;
+            foreach (IntelSlot slot in area.Intel)
+            {
+                if (!slot.Told || (slotId != null && slot.Id != slotId)) continue;
+                if (slot.When != null && !slot.When(scope)) continue;
+                if (!area.Pools.TryGetValue(slot.Pool, out List<string> pool)) continue;
+                if (day.ShownOf(slot).Count >= pool.Count) continue;
+                if (day.ShownCount >= limit) continue;
+                if (!day.Budget.TryGetValue(slot.Id, out int left)) day.Budget[slot.Id] = left = HowMany(slot, roll);
+                if (left > 0) candidates.Add(slot);
+            }
+            return candidates;
+        }
+
+        /// <summary>
+        /// Hands out one card of a slot <see cref="TellCandidates"/> returned: a random position of its pool not shown today,
+        /// recorded in <paramref name="day"/> and charged to the slot's budget. Returns the pool position.
+        /// </summary>
+        public static int Tell(AreaDef area, IntelSlot slot, Func<int, int> roll, ToldDay day)
+        {
+            List<int> shown = day.ShownOf(slot);
+            List<int> open = Enumerable.Range(0, area.Pools[slot.Pool].Count).Where(p => !shown.Contains(p)).ToList();
+            int at = open[roll(open.Count) - 1];
+            shown.Add(at);
+            day.Budget[slot.Id]--;
+            return at;
         }
 
         private static int HowMany(IntelSlot slot, Func<int, int> roll)

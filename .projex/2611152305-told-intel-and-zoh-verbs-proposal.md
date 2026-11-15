@@ -3,7 +3,7 @@
 > **Status:** Complete (Accepted)
 > **Author:** Claude Opus 5.5 (Agent)
 > **Parent:** 2611151847-customer-small-talk-intel-proposal.md
-> **Related Projex:** 2611152314-told-intel-slots-and-board-plan.md (plan: § 1 told slots + `IntelBoard`, no ZF dependency) | 2611152314-zoh-verb-provider-plan.md (plan: § 2 provider verbs; Requires ZF's `uses:` plan) | 2611152305-customer-small-talk-proposal.md (ZohFramework: small talk, `uses:` providers) | 2611152305-customer-rumours-proposal.md (NER: first told pack) | 2611142108-sim-tally-and-intel-cap-plan.md (closed: `intel_max`, `IntelRoller.Roll`)
+> **Related Projex:** 2611152314-told-intel-slots-and-board-plan.md (plan: § 1 told slots + `IntelBoard`, no ZF dependency; closed — 2611152314-told-intel-slots-and-board-walkthrough.md) | 2611152314-zoh-verb-provider-plan.md (plan: § 2 provider verbs; Requires ZF's `uses:` plan) | 2611152305-customer-small-talk-proposal.md (ZohFramework: small talk, `uses:` providers) | 2611152305-customer-rumours-proposal.md (NER: first told pack) | 2611142108-sim-tally-and-intel-cap-plan.md (closed: `intel_max`, `IntelRoller.Roll`)
 
 Accepted by the user 2026-11-15 ("split and plan them"). Split from the parent (in ZohFramework's `.projex/closed/`), which also covered ZohFramework and NER and keeps the game-probe evidence.
 

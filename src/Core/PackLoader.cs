@@ -1174,6 +1174,7 @@ namespace ExpeditionFramework.Core
                 Description = LineOf(n, "description", pack, at, required: true),
                 Effect = LineOf(n, "effect", pack, at, required: false),
                 Tone = Str(n, "tone", "mixed"),
+                Told = Bool(n, "told", false),
             };
             if (slot.Id == null) Problem(at, "needs \"id\"");
             if (slot.Pool == null || !area.Pools.ContainsKey(slot.Pool)) Problem(at + ".pool", "must name one of this area's pools");

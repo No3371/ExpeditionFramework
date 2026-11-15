@@ -35,6 +35,7 @@ namespace ExpeditionFramework.Game
                 ModHelper.RemoveAfterhourLocations(pack);
             }
             DevTools.RemoveAll();
+            IntelBoard.Reset();
             Loaded.Clear();
             HasAreas = false;
             registry = null;

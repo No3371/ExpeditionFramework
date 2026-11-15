@@ -5,7 +5,7 @@ using ExpeditionFramework.Core;
 
 namespace ExpeditionFramework.Game
 {
-    /// <summary>Entries in the game's debug panel for testing a pack: its kit, and unlocking its areas.</summary>
+    /// <summary>Entries in the game's debug panel for testing a pack: its kit, unlocking its areas, and telling its told intel.</summary>
     internal static class DevTools
     {
         public static void Add(Content content, string pack)
@@ -18,6 +18,16 @@ namespace ExpeditionFramework.Game
             {
                 string name = ModHelper.GetLocalized(area.Title.Pack, area.Title.Key);
                 ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: unlock " + name, () => Unlock(content, area, name));
+            }
+            if (content.Areas.Values.Any(a => a.Pack == pack && a.Intel.Any(s => s.Told)))
+            {
+                // A stand-in teller for packs played without a story mod: claim for this session, then tell one card at a time.
+                ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: claim intel (" + pack + ")", () => IntelBoard.Claim(pack));
+                ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: tell intel (" + pack + ")", () =>
+                {
+                    ToldCard card = IntelBoard.Tell(pack);
+                    ModEntry.Log.Log(card == null ? "Intel: nothing to tell for " + pack : "Intel: told " + card.Slot.Id + " -> " + card.Pick + " in " + card.Area.Id);
+                });
             }
         }
 

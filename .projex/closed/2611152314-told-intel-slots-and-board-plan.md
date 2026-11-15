@@ -1,10 +1,13 @@
 # Told Intel Slots + Internal Board (`told: true`, `IntelBoard`)
 
-> **Status:** In Progress
+> **Status:** Complete
 > **Author:** Claude Fable 5.1 (plan step)
 > **Parent:** 2611152305-told-intel-and-zoh-verbs-proposal.md
 > **Source:** 2611152305-told-intel-and-zoh-verbs-proposal.md (Complete (Accepted)) § 1 Told slots
 > **Related Projex:** 2611152314-zoh-verb-provider-plan.md (sibling; Requires this) | 2611152305-customer-small-talk-proposal.md (ZohFramework; the eventual claimant) | 2611142108-sim-tally-and-intel-cap-plan.md (closed; `intel_max`, `IntelRoller.Roll`, proof conventions reused) | 2611152305-customer-rumours-proposal.md (NER; first told pack)
+> **Completed:** 2026-11-16
+> **Walkthrough:** 2611152314-told-intel-slots-and-board-walkthrough.md
+> **Log:** 2611152314-told-intel-slots-and-board-log.md
 > **Worktree:** No — repo clean but for the untracked proposal (`main` @ `492d5cc`), no `projex/*` branches, ~10 files. The csproj's relative `GameManaged` path and the lint baselines below are relative to the main checkout; a worktree would break them. Override if `ef-sim.exe` is locked by another session (see 2611150108-melee-weapon-facts-plan.md Worktree note).
 
 ---

@@ -4,7 +4,7 @@
 > **Author:** Claude Fable 5.1 (plan step)
 > **Parent:** 2611152305-told-intel-and-zoh-verbs-proposal.md
 > **Source:** 2611152305-told-intel-and-zoh-verbs-proposal.md (Complete (Accepted)) § 2 EF as optional ZoH verb provider
-> **Related Projex:** 2611152314-told-intel-slots-and-board-plan.md (sibling; Required — `IntelBoard`) | 2611152320-zoh-optional-consumers-and-verb-providers-plan.md (ZohFramework plan; `uses:` providers — Required) | 2611152305-customer-small-talk-proposal.md (ZohFramework proposal; § 4 `uses:` providers) | 2611152305-customer-rumours-proposal.md (NER; first consumer) | 2611142108-sim-tally-and-intel-cap-plan.md (closed; proof conventions)
+> **Related Projex:** 2611152314-told-intel-slots-and-board-plan.md (sibling; Required — `IntelBoard`; closed — 2611152314-told-intel-slots-and-board-walkthrough.md) | 2611152320-zoh-optional-consumers-and-verb-providers-plan.md (ZohFramework plan; `uses:` providers — Required) | 2611152305-customer-small-talk-proposal.md (ZohFramework proposal; § 4 `uses:` providers) | 2611152305-customer-rumours-proposal.md (NER; first consumer) | 2611142108-sim-tally-and-intel-cap-plan.md (closed; proof conventions)
 > **Worktree:** No — ~9 files; the csproj's relative `GameManaged` and new `ZohApi` paths (`..\..\Mods\ZohFramework\`) resolve from the main checkout only. Override only together with `-p:ZohApi=…` and `-p:GameManaged=…` on every build.
 
 ---

@@ -57,7 +57,7 @@ namespace ExpeditionFramework.Game
             this.area = area;
             bagReader = new ItemReader(content);
             map = new MapContext(area.Id, (pack, key, args) => ModHelper.GetLocalized(pack, key, args), name => GameValues.Get(name, area.Id), new SaveMemory());
-            intel = new IntelCards(area, Id, map);
+            intel = new IntelCards(area, Id, map, IsDiscovered);
         }
 
         // Saved state keys and map ids can't rely on ':' being safe.

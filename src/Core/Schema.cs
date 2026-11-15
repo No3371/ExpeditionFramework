@@ -60,7 +60,8 @@ namespace ExpeditionFramework.Core
         public static readonly Shape Packing = new Shape(("no_backpack", Field.Text), ("card", Field.Text), ("needs", Field.Any));
         public static readonly Shape PackingNeed = new Shape(("items", Field.Any), ("missing", Field.Text));
         public static readonly Shape Intel = new Shape(("id", Field.Text), ("pool", Field.Text), ("chance", Field.Number), ("counts", Field.Numbers),
-            ("title", Field.Any), ("description", Field.Any), ("effect", Field.Any), ("tone", Field.IntelTone), ("good", Field.Texts), ("when", Field.Any));
+            ("title", Field.Any), ("description", Field.Any), ("effect", Field.Any), ("tone", Field.IntelTone), ("good", Field.Texts), ("when", Field.Any),
+            ("told", Field.Flag));
         public static readonly Shape Hud = new Shape(("title", Field.Any), ("rows", Field.Any), ("enemies", Field.Any));
         public static readonly Shape HudRow = new Shape(("when", Field.Any), ("parts", Field.Any), ("separator", Field.Flag));
         public static readonly Shape HudEnemies = new Shape(("line", Field.Any), ("pending", Field.Any), ("none", Field.Any), ("pending_scenes", Field.Texts));
