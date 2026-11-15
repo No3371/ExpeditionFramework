@@ -66,7 +66,7 @@ Story syntax is ZoH Framework's; its README is the reference for it, and for the
 ```zoh
 Yard rumours
 uses: ["expedition_framework"];
-smalltalk: { chance: 20, at: ["arrive"] };
+smalltalk: { "chance": 20, "at": ["arrive"] };
 required_verbs: ["ps.entry", "ef.rumour"];
 ===
 /ps.entry; -> *entry;
@@ -79,7 +79,11 @@ required_verbs: ["ps.entry", "ef.rumour"];
 /ef.rumour; -> *key;
 /if *key, is: ?, /exit;;
 /converse *key;
+/exit;
 ```
+
+The keys of the `smalltalk` map are quoted; without the quotes the story fails to load. Each `@smalltalk_*` entry ends
+with `/exit;`, or the talk runs on into whatever label follows it.
 
 A regular customer who makes small talk on arriving asks for a rumour. If there is one, the customer says its line and the
 card is on the map. If there is none, the story ends without a line and the customer behaves as usual.
@@ -97,6 +101,7 @@ Letting the player decide, with a reserved card:
 /; -> *pick;
 /if *pick, is: "yes", /ef.tell *key;;
 /if *pick, is: "yes", /converse *key;;
+/exit;
 ```
 
 This story also lists `ef.tell` in `required_verbs`.
