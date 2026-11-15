@@ -1,6 +1,6 @@
 # Told Intel Slots + Internal Board (`told: true`, `IntelBoard`)
 
-> **Status:** Ready
+> **Status:** In Progress
 > **Author:** Claude Fable 5.1 (plan step)
 > **Parent:** 2611152305-told-intel-and-zoh-verbs-proposal.md
 > **Source:** 2611152305-told-intel-and-zoh-verbs-proposal.md (Complete (Accepted)) § 1 Told slots
