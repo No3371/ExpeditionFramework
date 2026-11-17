@@ -35,6 +35,13 @@ namespace ExpeditionFramework.Game
             story.AddVerb("ef.tell", call => Tell(consumer, call));
         }
 
+        /// <summary>Drops what is kept for one consumer: its held cards and the mark that it was warned.</summary>
+        public static void Forget(string consumer)
+        {
+            warned.Remove(consumer);
+            held.Remove(consumer);
+        }
+
         // /ef.rumour key: "…" area: "…" slot: "…" tell: false;  gives the card's text key, or nothing when no card can be told.
         private static object Rumour(string consumer, IStoryCall call)
         {

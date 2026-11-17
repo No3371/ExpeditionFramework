@@ -18,6 +18,20 @@ namespace ExpeditionFramework.Game
         public string Pick;
     }
 
+    /// <summary>One told slot of one area as the save has it today.</summary>
+    internal sealed class ToldSlotState
+    {
+        public string Area;
+        public string Slot;
+        public bool Discovered;
+        /// <summary>Whether the area's intel was rolled today; until then its counters are yesterday's.</summary>
+        public bool RolledToday;
+        /// <summary>Whether the slot rolled its budget today, which the first tell that reaches it does.</summary>
+        public bool BudgetRolled;
+        /// <summary>The picks on the slot's counters: shown on the map, or held for a later show.</summary>
+        public readonly List<(string Pick, bool Held, bool Showing)> Cards = new List<(string, bool, bool)>();
+    }
+
     /// <summary>
     /// Who tells a pack's told intel. A claim says some mod hands out the pack's told cards itself, so the day's roll leaves
     /// them alone; without one a pack rolls told slots with the rest. Claims live here, not on the pack's areas, because a
@@ -41,6 +55,20 @@ namespace ExpeditionFramework.Game
         {
             if (!packs.TryGetValue(cards.Pack, out List<IntelCards> areas)) packs[cards.Pack] = areas = new List<IntelCards>();
             areas.Add(cards);
+        }
+
+        /// <summary>Forgets one pack's areas and its claim, so cards built for it again start from nothing.</summary>
+        public static void Remove(string packId)
+        {
+            if (packId == null) return;
+            claimed.Remove(packId);
+            packs.Remove(packId);
+        }
+
+        /// <summary>Where each told slot of the pack stands today, read off the save without rolling anything.</summary>
+        public static List<ToldSlotState> ToldStates(string packId)
+        {
+            return packId != null && packs.TryGetValue(packId, out List<IntelCards> areas) ? areas.SelectMany(c => c.ToldStates()).ToList() : new List<ToldSlotState>();
         }
 
         /// <summary>Forgets packs and claims; the pack registry calls this when the framework stops.</summary>

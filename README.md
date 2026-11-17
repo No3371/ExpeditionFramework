@@ -83,4 +83,5 @@ Everything else is in [docs/](docs/README.md):
 - Reference: [Expressions](docs/expressions.md), [Effects](docs/effects.md), [Text](docs/text.md),
   [Memory](docs/memory.md), [Game reads and reputation](docs/game.md), [Intel cards](docs/intel.md),
   [Telling intel through ZoH](docs/zoh.md)
-- [Testing with ef-sim](docs/testing.md), [C# API](docs/csharp-api.md)
+- [Testing with ef-sim](docs/testing.md), its [in-game self-tests](docs/testing.md#in-game-self-tests),
+  [C# API](docs/csharp-api.md)

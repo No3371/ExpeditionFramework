@@ -73,7 +73,8 @@ dotnet run -c Release --project tools/EfSim -- lint docs/examples/Showcase --str
 dotnet run -c Release --project tools/EfSim -- run docs/examples/Showcase
 ```
 
-`src/Game` can't be tested outside the game. A change there needs the build to succeed and a play in the game.
+`src/Game` can't be tested outside the game. A change there needs the build to succeed and a play in the game. For told
+intel and the `ef.*` verbs, the debug panel's [in-game self-tests](testing.md#in-game-self-tests) do most of that play.
 
 ## Adding a built-in
 

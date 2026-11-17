@@ -91,8 +91,16 @@ namespace ExpeditionFramework.Game
 
         public override string GetTitle()
         {
-            if (IsDiscovered()) intel.EnsureToday();
+            EnsureIntel();
             return GetPanelTitle();
+        }
+
+        internal IntelCards Intel => intel;
+
+        /// <summary>Rolls and shows today's intel if the area is on the map and the day hasn't been rolled.</summary>
+        internal void EnsureIntel()
+        {
+            if (IsDiscovered()) intel.EnsureToday();
         }
 
         /// <summary>

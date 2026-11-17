@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- The in-game self-test buttons are left out of ordinary builds; -p:SelfTests=true puts them in the debug panel. -->
+  <PropertyGroup Condition="'$(SelfTests)' == 'true'">
+    <DefineConstants>$(DefineConstants);SELFTEST</DefineConstants>
+  </PropertyGroup>
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>ExpeditionFramework</AssemblyName>

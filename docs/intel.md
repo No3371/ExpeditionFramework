@@ -79,7 +79,8 @@ so a pack played without a teller mod keeps all its intel. Once the pack is clai
 
 Nothing is hidden and nothing carries over: a card that wasn't told doesn't exist, there is no rolled card waiting out of
 sight, and the next day every told slot starts again with a new budget. A told card is an ordinary card from then on:
-`intel(id)`, `schedule` with `intel` and `spawn` with `intel` see it in a run that day, and it survives a reload.
+`intel(id)`, `schedule` with `intel` and `spawn` with `intel` see it in a run that day. The game saves when a day ends, so loading the save starts
+the day again with every told slot untold.
 
 A claim is made by the teller mod each time the game loads, before the day's first roll. If a pack is claimed after its
 day was already rolled, the cards its told slots rolled that morning stay, and telling starts properly the next day.

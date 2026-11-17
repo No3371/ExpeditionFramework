@@ -329,3 +329,43 @@ dotnet run -c Release --project tests/Sim
 Checks the framework's content, tests the loader's error reporting with small packs written in the test, then plays the
 sample area with random choices (`SIM_RUNS` sets how many, default 5000). `tests/Sim -- lint FOLDER` runs the same lint
 as `ef-sim`.
+## In-game self-tests
+
+> The self-test buttons are left out of ordinary builds. Build with `dotnet build ExpeditionFramework.csproj -c Release -p:SelfTests=true` to get them in the debug panel.
+
+Told intel and the `ef.*` verbs live in `src/Game`, which only runs in the game. Two entries in the debug panel
+(F9, Modding category) check them there. Load a save, press one, and read the lines starting `[Self-test]` in the F8
+console or `Player.log`: each is `PASS`, `FAIL` or `SKIP`, led by the number of the check in the table below, and the last
+line counts them.
+
+**Expeditions: run self-tests** plays a small pack of its own that is never put on the map. It needs no pack, story or
+customer, and finishes within the press. It stands in for a story by calling the verbs the way ZoH Framework does, and
+moves the day counter forward for the two checks that need a next day, then puts it back.
+
+**Expeditions: check told intel on this save** reads the installed packs' told slots and writes where each stands. It
+changes nothing. It also remembers what it saw until the game is closed, so a second press can compare:
+
+- Press, play to the next day, open the night map, press again: check 22 on a real day change.
+
+| # | Check | Covered by |
+|---|---|---|
+| 20 | Unclaimed, a told slot's cards are on the map at the day's roll | Self-test |
+| 21 | Claimed before the roll, no told card shows; a tell shows one at once and logs `Intel: told <slot> -> <pick> in <area>`; past the budget it logs `Intel: nothing to tell for <pack>`; the card is still there when the map is opened again | Self-test 21a to 21c. 21d rebuilds the cards from the day's counters. Loading the save is not checked: the game saves when a day ends, so a load starts the day again |
+| 22 | Next day the told card is gone and the slot shows nothing until told | Self-test, on a moved day counter; the save check on a real next day |
+| 23 | A told slot in a locked area is never told until the area is unlocked | Self-test; the save check for the installed packs |
+| 24 | Without ZoH Framework the mod loads and told cards roll as before | Self-test, only while ZoH Framework is disabled; otherwise SKIP |
+| 25 | With ZoH Framework, `ZohFramework.Api` is loaded once, from one path | Self-test, by counting the loaded copies. The `ZohFramework.Api loaded from` line itself is ZoH Framework's and is read by eye |
+| 26 | `/ef.rumour tell: false` then `/ef.tell` shows the card only after the tell; next day the old key gives false; `area:` and `slot:` narrow the pick; a mod that is not a pack gets one warning and nothing | Self-test 26a to 26e |
+| 27 | After the budget or `intel_max` is spent `/ef.rumour` gives nothing | Self-test 27a and 27b |
+
+Still checked by hand:
+
+- A story file's own lines reaching the verbs: a customer from a real story saying a rumour, and `*key` carried from
+  `/ef.rumour` to `/ef.tell`. The self-test calls the verbs directly and never parses a story.
+- How a told card reads and looks on the map card. The self-test's pack has no text.
+- Checks 24 and 25 both ways: run the self-test once with ZoH Framework enabled and once without.
+
+The self-test takes everything it made out of the save before it returns, whether its checks pass or fail: the state of
+its three areas, their cards, its claim and the day counter. While it runs, the game's afterhour event hooks fire for
+its cards, whose ids start with `ef_selftest`. Prefer a test save all the same. The
+save check compares presses on the same save; after loading another save its first press is only a note for the next.

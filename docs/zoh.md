@@ -66,7 +66,7 @@ Story syntax is ZoH Framework's; its README is the reference for it, and for the
 ```zoh
 Yard rumours
 uses: ["expedition_framework"];
-smalltalk: { "chance": 20, "at": ["arrive"] };
+smalltalk: { "at": { "arrive": 20 } };
 required_verbs: ["ps.entry"];
 ===
 /ps.entry; -> *entry;
@@ -82,8 +82,9 @@ required_verbs: ["ps.entry"];
 /exit;
 ```
 
-The keys of the `smalltalk` map are quoted; without the quotes the story fails to load. Each `@smalltalk_*` entry ends
-with `/exit;`, or the talk runs on into whatever label follows it.
+`at` maps each moment to its own percent; here a regular customer talks on arriving one time in five. The keys of the
+`smalltalk` and `at` maps are quoted; without the quotes the story fails to load. Each `@smalltalk_*` entry ends with
+`/exit;`, or the talk runs on into whatever label follows it.
 
 A regular customer who makes small talk on arriving asks for a rumour. If there is one, the customer says its line and the
 card is on the map. If there is none, the story ends without a line and the customer behaves as usual.
@@ -120,3 +121,4 @@ With the `ef.*` verbs left out of the list, a missing provider only skips their 
 - ZoH Framework's log names the verbs each story got: `ef.rumour, ef.tell` for the pack's story.
 - A new day shows no card for the pack's told slots until a customer tells one.
 - The debug panel's stand-in teller ([Told slots](intel.md#told-slots)) tells a card without waiting for a customer.
+- The debug panel's [in-game self-tests](testing.md#in-game-self-tests) check the verbs without a story or a customer.

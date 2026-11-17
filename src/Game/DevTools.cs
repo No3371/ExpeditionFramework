@@ -5,7 +5,7 @@ using ExpeditionFramework.Core;
 
 namespace ExpeditionFramework.Game
 {
-    /// <summary>Entries in the game's debug panel for testing a pack: its kit, unlocking its areas, and telling its told intel.</summary>
+    /// <summary>Entries in the game's debug panel: for testing a pack, its kit, unlocking its areas and telling its told intel; for the framework, its own checks.</summary>
     internal static class DevTools
     {
         public static void Add(Content content, string pack)
@@ -23,12 +23,15 @@ namespace ExpeditionFramework.Game
             {
                 // A stand-in teller for packs played without a story mod: claim for this session, then tell one card at a time.
                 ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: claim intel (" + pack + ")", () => IntelBoard.Claim(pack));
-                ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: tell intel (" + pack + ")", () =>
-                {
-                    ToldCard card = IntelBoard.Tell(pack);
-                    ModEntry.Log.Log(card == null ? "Intel: nothing to tell for " + pack : "Intel: told " + card.Slot.Id + " -> " + card.Pick + " in " + card.Area.Id);
-                });
+                ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: tell intel (" + pack + ")", () => ModEntry.Log.Log(TellIntel(pack)));
             }
+        }
+
+        /// <summary>Tells one card of the pack and gives the line the stand-in teller writes to the log.</summary>
+        internal static string TellIntel(string pack)
+        {
+            ToldCard card = IntelBoard.Tell(pack);
+            return card == null ? "Intel: nothing to tell for " + pack : "Intel: told " + card.Slot.Id + " -> " + card.Pick + " in " + card.Area.Id;
         }
 
         // Where the game keeps its melee weapons: most in their own directory, the tazer with the guns, a wrench in an unused one.
@@ -40,6 +43,9 @@ namespace ExpeditionFramework.Game
         public static void AddFramework(Content content)
         {
             ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: log melee weapon facts", () => LogMeleeFacts(content));
+#if SELFTEST
+            SelfTest.Register();
+#endif
         }
 
         public static void RemoveAll() => ModHelper.RemoveDebugFunctions(ModEntry.ModId);

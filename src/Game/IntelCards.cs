@@ -13,7 +13,7 @@ namespace ExpeditionFramework.Game
     /// </summary>
     internal sealed class IntelCards
     {
-        private const string DayCounter = "ef_intel_day";
+        internal const string DayCounter = "ef_intel_day";
 
         // The game rolls Random.Range(0, 100), which can return 100 itself, so 100 isn't quite always.
         private const float AlwaysPercent = 101f;
@@ -105,6 +105,26 @@ namespace ExpeditionFramework.Game
                     .ToList();
             }
             return today;
+        }
+
+        /// <summary>Each told slot's counters and cards as they stand, without rolling the day or a budget.</summary>
+        public List<ToldSlotState> ToldStates()
+        {
+            var states = new List<ToldSlotState>();
+            if (!PlayerStore.HasInstance || StoreStation.Instance == null) return states;
+            bool rolled = State.GetCounter(DayCounter) == StoreStation.Instance.dayCounter;
+            bool known = discovered();
+            foreach (IntelSlot slot in area.Intel.Where(s => s.Told))
+            {
+                var state = new ToldSlotState { Area = area.Id, Slot = slot.Id, Discovered = known, RolledToday = rolled, BudgetRolled = State.GetCounter(BudgetCounter(slot)) > 0 };
+                for (int i = 0; i < slot.MaxPicks; i++)
+                {
+                    string pick = Pick(slot, i);
+                    if (pick != null) state.Cards.Add((pick, Held(slot, i), AfterhourEvents.IsActive(CardId(slot, i))));
+                }
+                states.Add(state);
+            }
+            return states;
         }
 
         // Rolls today's intel the first time it's asked for each day. Always returns true, so it can lead a canStart.

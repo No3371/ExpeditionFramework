@@ -49,6 +49,7 @@ internal static class Program
         TestIntelMax();
         TestToldIntel();
         TestCardKey();
+        TestSelfTestPack();
         TestGameReads();
         TestReputation();
         TestMemoryWarnings();
@@ -142,6 +143,28 @@ internal static class Program
         loader.Load("t", "x.json", f => json);
         loader.Finish();
         return content;
+    }
+
+    // The pack the in-game self-test plays: it must load with nothing to report, and its dice must be the fixed ones the
+    // self-test's expected counts are written for.
+    private static void TestSelfTestPack()
+    {
+        var set = new PackSet(new Registry());
+        set.Add(SelfTestPack.Id, "ExpeditionFramework/main.json", f => SelfTestPack.Json);
+        Content content = set.Compile(out Dictionary<string, List<string>> problems, out Dictionary<string, List<string>> warnings);
+        string all = string.Join("; ", problems.Values.SelectMany(l => l).Concat(warnings.Values.SelectMany(l => l)));
+        Check(all == "", "the self-test pack loads cleanly: " + all);
+        if (all != "") return;
+        AreaDef street = content.Areas[SelfTestPack.Id + ":street"], cellar = content.Areas[SelfTestPack.Id + ":cellar"], yard = content.Areas[SelfTestPack.Id + ":yard"];
+        var map = new MapContext(street.Id, (p, k, a) => k, name => 0);
+        string Picks(AreaDef area, bool claimed) => string.Join(" ", IntelRoller.Roll(area, sides => 1, map.Root, claimed).Select(p => p.Key + ":" + p.Value.Count));
+        Check(Picks(street, false) == "sign:1 rumour:2" && Picks(street, true) == "sign:1 rumour:0", "self-test street rolls one sign, and two rumours unless claimed: " + Picks(street, false) + " / " + Picks(street, true));
+        Check(Picks(yard, false) == "notice:1 talk:0" && Picks(yard, true) == "notice:1 talk:0", "self-test yard is at its intel_max with its notice: " + Picks(yard, false));
+        Check(cellar.UnlockedBy == street.Id && Picks(cellar, true) == "whisper:0", "self-test cellar is unlocked by street and rolls nothing when claimed: " + cellar.UnlockedBy);
+        var day = new IntelRoller.ToldDay();
+        int told = 0;
+        while (IntelRoller.TellCandidates(cellar, sides => sides, map.Root, day).Count > 0) { IntelRoller.Tell(cellar, cellar.Intel[0], sides => 1, day); told++; }
+        Check(told == 6 && cellar.Pools["whispers"].Count == 7, "self-test cellar tells six of its seven whispers: " + told);
     }
 
     private static void TestBadContentIsReported()
