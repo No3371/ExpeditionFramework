@@ -2,7 +2,7 @@
 <Manifest>
   <ID>expedition_framework</ID>
   <Name>Expedition Framework</Name>
-  <Author>developer</Author>
+  <Author>BA</Author>
   <ModVersion>0.1.0</ModVersion>
   <Description>Plays night expeditions defined in data files: areas, rooms, encounters, events and what the player can do in them. Needed by expedition mods that list it as a prerequisite.</Description>
   <GameVersions>

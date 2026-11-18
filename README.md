@@ -7,8 +7,7 @@ area, enemy or weapon lives in the engine, and a pack can extend anything in C# 
 Any mod that ships `ExpeditionFramework/main.json` is a pack. It needs no dependency on this mod: without the framework
 installed, the folder is simply never read.
 
-Status: 0.1.0. The engine passes its simulator. The in-game side builds and passes the mod scanner, but has not been
-played.
+Status: 0.1.0, for game version 0.46.
 
 ## Install
 
