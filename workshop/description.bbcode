@@ -1,0 +1,18 @@
+[h1]Expedition Framework[/h1]
+Plays night expeditions that other mods define in data files. On its own it adds nothing to play: install it because an expedition mod asks for it.
+
+[h2]For players[/h2]
+[list]
+[*]Subscribe, enable it, and enable the expedition mods that need it.
+[*]Their areas then show on the night map.
+[/list]
+
+[h2]For modders[/h2]
+A pack describes areas, rooms, enemies, events, loot and traders in JSON; the framework puts the areas on the night map and runs them. Any mod that ships [b]ExpeditionFramework/main.json[/b] is a pack.
+[list]
+[*]Checks, fights, enemy behavior, loot tables, events, traders, map intel and area audio, all in data.
+[*]Anything can be extended in C# through the API.
+[*]A simulator (ef-sim) plays a pack thousands of times outside the game to test it.
+[/list]
+
+Languages: English, Simplified Chinese, Japanese.
