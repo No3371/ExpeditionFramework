@@ -1,0 +1,58 @@
+ef_player,自分
+ef_found,入手：{0}
+ef_lost,暗闇で紛失：{0}
+ef_leave,立ち去る
+ef_outcome_left,まだ引き返せるうちに、踵を返した。
+ef_outcome_cleared,めぼしい物はすべて回収し、帰路についた。
+ef_outcome_knocked_out,目の前が真っ暗になり、意識が途切れた。
+ef_panel_title,{0} - 部屋 {1}/{2}
+ef_status_hp,体力：{0}/{1}
+ef_status_turn,ターン {0}
+ef_status_effects,状態：{0}
+ef_enemy_line,{0} {1}/{2} - {3}
+ef_group_explore,探索
+ef_group_attack,攻撃
+ef_group_tactics,戦術
+ef_group_supplies,物資
+ef_group_move,移動
+ef_status_bleeding,出血
+ef_bleed_tick,脇腹から血が滴り落ちる。
+ef_intent_surprised,不意を突かれている
+ef_intent_staggered,体勢を崩している
+ef_intent_strike,攻撃態勢
+ef_intent_wind_up,力を溜めている
+ef_intent_heavy_strike,強撃の構え
+ef_intent_flee,逃走の隙を窺っている
+ef_do_surprised,{0}は虚を突かれ、対応が遅れている。
+ef_do_staggered,{0}はよろめき、体勢を立て直せない。
+ef_do_strike_hit,{0}の一撃が捉えた。
+ef_do_strike_miss,{0}の攻撃は空を切った。
+ef_tell_wind_up,{0}が大きく振りかぶり、強烈な一撃を狙っている。
+ef_do_wind_up,{0}は足を踏みしめ、力を溜めた。
+ef_do_heavy_strike,{0}の強烈な一撃が炸裂した。
+ef_do_flee,{0}は闇の中へと逃げ去った。
+ef_action_press_on,奥へ進む
+ef_action_head_home,引き返す
+ef_action_shoot,{0}を撃つ
+ef_action_reload,リロード
+ef_action_melee,{0}を攻撃
+ef_action_punch,{0}を殴る
+ef_action_heal,手当てする
+ef_info_loaded,{0}：装填 {1}/{2}
+ef_info_reload_with,{0}を使用（x{1}）
+ef_info_melee,{0}を使用
+ef_info_heal,{0}（x{1}）
+ef_shoot_hit,銃弾が{0}を捉えた。
+ef_shoot_miss,銃弾は{0}の脇を掠めて外れた。
+ef_melee_hit,{0}に一撃を叩き込んだ。
+ef_melee_miss,{0}はひらりと身をかわした。
+ef_reloaded,{0}に弾を込め直した。
+ef_healed,{0}で傷の手当てをした。
+ef_roll_vs,[d{4} {0}{1}={2} 対 {3}]
+ef_roll,[d{1} {0}]
+ef_log,行動記録
+ef_actions,どう動く？
+ef_odds,成功率 {0}%
+ef_trade_deal,取引を始める
+ef_trade_finish,取引を終える
+ef_hands_title,手持ち枠

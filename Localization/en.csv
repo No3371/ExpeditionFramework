@@ -1,14 +1,14 @@
 ef_player,You
-ef_found,You found: {0}
-ef_lost,Lost in the dark: {0}
+ef_found,Found: {0}
+ef_lost,Lost to the dark: {0}
 ef_leave,Leave
-ef_outcome_left,You head back while you still can.
-ef_outcome_cleared,Nothing left here to take. You head home.
-ef_outcome_knocked_out,Everything goes black.
-ef_panel_title,{0} - room {1}/{2}
+ef_outcome_left,You slip out while your luck still holds.
+ef_outcome_cleared,Cleaned out. Nothing left here but dust—you head home.
+ef_outcome_knocked_out,Your knees buckle, and the dark rushes up to meet you.
+ef_panel_title,{0} - Room {1}/{2}
 ef_status_hp,Health: {0}/{1}
 ef_status_turn,Turn {0}
-ef_status_effects,Affected by: {0}
+ef_status_effects,Status: {0}
 ef_enemy_line,{0} {1}/{2} - {3}
 ef_group_explore,Explore
 ef_group_attack,Attack
@@ -16,43 +16,43 @@ ef_group_tactics,Tactics
 ef_group_supplies,Supplies
 ef_group_move,Move
 ef_status_bleeding,Bleeding
-ef_bleed_tick,Blood runs down your side.
-ef_intent_surprised,caught off guard
+ef_bleed_tick,Warm blood courses down your ribs.
+ef_intent_surprised,caught flat-footed
 ef_intent_staggered,reeling
-ef_intent_strike,about to attack
-ef_intent_wind_up,winding up
-ef_intent_heavy_strike,about to hit hard
-ef_intent_flee,looking for a way out
-ef_do_surprised,{0} scrambles to react.
-ef_do_staggered,{0} can't recover in time.
-ef_do_strike_hit,{0} connects.
-ef_do_strike_miss,{0} misses you.
-ef_tell_wind_up,{0} draws back for a big one.
-ef_do_wind_up,{0} sets their feet.
-ef_do_heavy_strike,{0} lands a brutal hit.
-ef_do_flee,{0} bolts into the dark.
+ef_intent_strike,poised to strike
+ef_intent_wind_up,gathering force
+ef_intent_heavy_strike,coiled for a heavy blow
+ef_intent_flee,looking to bolt
+ef_do_surprised,{0} scrambles to recover.
+ef_do_staggered,{0} stumbles, still reeling.
+ef_do_strike_hit,{0} lands a clean hit.
+ef_do_strike_miss,{0} swings wide.
+ef_tell_wind_up,{0} draws back, putting their weight behind the next blow.
+ef_do_wind_up,{0} plants their feet and winds up.
+ef_do_heavy_strike,{0} brings down a bone-rattling hit.
+ef_do_flee,{0} turns tail and bolts into the dark.
 ef_action_press_on,Press on
-ef_action_head_home,Head home
+ef_action_head_home,Head back
 ef_action_shoot,Shoot {0}
 ef_action_reload,Reload
-ef_action_melee,Hit {0}
-ef_action_punch,Punch {0}
-ef_action_heal,Heal
-ef_info_loaded,{0}: {1}/{2} loaded
+ef_action_melee,Strike {0}
+ef_action_punch,Slug {0}
+ef_action_heal,Patch up
+ef_info_loaded,{0}: {1}/{2} chambered
 ef_info_reload_with,with {0} (x{1})
 ef_info_melee,with {0}
 ef_info_heal,{0} (x{1})
-ef_shoot_hit,Your shot hits {0}.
-ef_shoot_miss,Your shot goes wide of {0}.
-ef_melee_hit,You connect with {0}.
-ef_melee_miss,{0} slips your swing.
-ef_reloaded,You reload {0}.
-ef_healed,You patch yourself up with {0}.
+ef_shoot_hit,Your round punches into {0}.
+ef_shoot_miss,Your shot sparks wide of {0}.
+ef_melee_hit,You catch {0} solid.
+ef_melee_miss,{0} ducks under your swing.
+ef_reloaded,You thumb a fresh load into {0}.
+ef_healed,You patch yourself together with {0}.
 ef_roll_vs,[d{4} {0}{1}={2} vs {3}]
 ef_roll,[d{1} {0}]
-ef_log,What happened
-ef_actions,What do you do?
-ef_odds,{0}% chance
-ef_trade_deal,Open the deal
-ef_trade_finish,Done trading
+ef_log,Log
+ef_actions,Your move
+ef_odds,{0}% odds
+ef_trade_deal,Make an offer
+ef_trade_finish,Close the deal
 ef_hands_title,In hand
