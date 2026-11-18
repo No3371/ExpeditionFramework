@@ -58,10 +58,10 @@ if (-not $SkipTests) {
 Write-Host "==> Building Expedition Framework v$version" -ForegroundColor Cyan
 if (Test-Path $buildDir) { Remove-Item $buildDir -Recurse -Force }
 New-Item -ItemType Directory -Force $contentDir | Out-Null
-# The csproj's InstallMod target copies the mod's files into InstallDir. SelfTests stays off: the debug panel's
-# self-test buttons are not for players.
+# The csproj's InstallMod target copies the mod's files into InstallDir. SelfTests and DevTools stay off: the debug
+# panel's self-test and pack-testing buttons are not for players.
 $installDir = ($contentDir -replace '\\', '/') + '/'
-dotnet build (Join-Path $root 'ExpeditionFramework.csproj') -c Release --nologo "-p:InstallDir=$installDir" -p:SelfTests=false
+dotnet build (Join-Path $root 'ExpeditionFramework.csproj') -c Release --nologo "-p:InstallDir=$installDir" -p:SelfTests=false -p:DevTools=false
 if ($LASTEXITCODE) { throw 'Build failed.' }
 
 foreach ($required in 'ExpeditionFramework.dll', 'ExpeditionFramework.Api.dll', 'ZohFramework.Api.dll', 'manifest.xml', 'ExpeditionFramework/main.json') {

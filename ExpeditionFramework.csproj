@@ -4,6 +4,10 @@
   <PropertyGroup Condition="'$(SelfTests)' == 'true'">
     <DefineConstants>$(DefineConstants);SELFTEST</DefineConstants>
   </PropertyGroup>
+  <!-- The debug panel's entries for testing a pack (test kit, unlock, stand-in teller, melee facts) are left out of ordinary builds too; -p:DevTools=true puts them in. -->
+  <PropertyGroup Condition="'$(DevTools)' == 'true'">
+    <DefineConstants>$(DefineConstants);DEVTOOLS</DefineConstants>
+  </PropertyGroup>
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>ExpeditionFramework</AssemblyName>

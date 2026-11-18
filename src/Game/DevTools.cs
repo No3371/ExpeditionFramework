@@ -5,11 +5,16 @@ using ExpeditionFramework.Core;
 
 namespace ExpeditionFramework.Game
 {
-    /// <summary>Entries in the game's debug panel: for testing a pack, its kit, unlocking its areas and telling its told intel; for the framework, its own checks.</summary>
+    /// <summary>
+    /// Entries in the game's debug panel: for testing a pack, its kit, unlocking its areas and telling its told intel; for the
+    /// framework, its own checks. A build has them only with DEVTOOLS (and the self-tests only with SELFTEST), so players
+    /// don't get buttons that hand out items and skip unlocks.
+    /// </summary>
     internal static class DevTools
     {
         public static void Add(Content content, string pack)
         {
+#if DEVTOOLS
             if (content.DebugKits.TryGetValue(pack, out List<string> kit))
             {
                 ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: give test kit (" + pack + ")", () => GiveKit(kit));
@@ -25,6 +30,7 @@ namespace ExpeditionFramework.Game
                 ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: claim intel (" + pack + ")", () => IntelBoard.Claim(pack));
                 ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: tell intel (" + pack + ")", () => ModEntry.Log.Log(TellIntel(pack)));
             }
+#endif
         }
 
         /// <summary>Tells one card of the pack and gives the line the stand-in teller writes to the log.</summary>
@@ -34,15 +40,19 @@ namespace ExpeditionFramework.Game
             return card == null ? "Intel: nothing to tell for " + pack : "Intel: told " + card.Slot.Id + " -> " + card.Pick + " in " + card.Area.Id;
         }
 
+#if DEVTOOLS
         // Where the game keeps its melee weapons: most in their own directory, the tazer with the guns, a wrench in an unused one.
         // Only these are built, not every item the game has: building thousands of items to find a dozen would be slow and would run
         // factories nothing here needs.
         private static readonly string[] WeaponDirectories = { "MeleeWeaponItemDirectory", "GunsItemDirectory", "UnusedDirectory" };
+#endif
 
         /// <summary>Entries for the framework itself, whatever packs are installed.</summary>
         public static void AddFramework(Content content)
         {
+#if DEVTOOLS
             ModHelper.AddDebugFunction(ModEntry.ModId, ModHelper.DEBUG_CATEGORY_MODDING, "Expeditions: log melee weapon facts", () => LogMeleeFacts(content));
+#endif
 #if SELFTEST
             SelfTest.Register();
 #endif
@@ -50,6 +60,7 @@ namespace ExpeditionFramework.Game
 
         public static void RemoveAll() => ModHelper.RemoveDebugFunctions(ModEntry.ModId);
 
+#if DEVTOOLS
         // One log line per melee weapon the game can make, read by the same code a run uses, for fitting formulas over the facts.
         // Each item is built fresh from its directory, so the line shows it as the game first makes it, not as one carried and aged.
         private static void LogMeleeFacts(Content content)
@@ -101,5 +112,6 @@ namespace ExpeditionFramework.Game
             }
             StoreUIManager.Instance.Notify(name + " unlocked.");
         }
+#endif
     }
 }

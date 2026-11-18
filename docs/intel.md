@@ -87,7 +87,7 @@ day was already rolled, the cards its told slots rolled that morning stay, and t
 
 `ef-sim` has no teller: with `"intel": true` it rolls told slots with the rest, as if every card had been told.
 
-The debug panel's Modding category has a stand-in teller for each pack with a told slot: "Expeditions: claim intel (pack)"
+In a framework built with `-p:DevTools=true` ([Debug panel](packs.md#debug-panel)), the debug panel's Modding category has a stand-in teller for each pack with a told slot: "Expeditions: claim intel (pack)"
 claims it for the session, and "Expeditions: tell intel (pack)" tells one card and writes what it told to the game log.
 
 The ZoH verbs that tell are in [Telling intel through ZoH](zoh.md).
