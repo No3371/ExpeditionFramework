@@ -46,7 +46,7 @@ namespace ExpeditionFramework.Core
             ["events"] = Pooled.With(("text", Field.Any), ("scene", Field.Text), ("enter", Field.Any), ("choices", Field.Any)),
             ["rooms"] = Pooled.With(("text", Field.Any), ("enter", Field.Any), ("interactions", Field.Any), ("on", Field.Any)),
             ["kits"] = Named.With(("interactions", Field.Any), ("on", Field.Any)),
-            ["areas"] = Named.With(("title", Field.Text), ("unlocked_by", Field.Text), ("ambience", Field.Text), ("art", Field.Text),
+            ["areas"] = Named.With(("title", Field.Text), ("unlocked_by", Field.Text), ("ambience", Field.Text), ("audio", Field.Any), ("art", Field.Text),
                 ("hidden_when", Field.Any), ("player", Field.Any), ("vars", Field.Any), ("pools", Field.Any), ("entrance", Field.Text),
                 ("kits", Field.Texts), ("groups", Field.Texts), ("luck", Field.Any), ("texts", Field.Any), ("packing", Field.Any),
                 ("intel", Field.Any), ("intel_max", Field.Any), ("hud", Field.Any), ("interactions", Field.Any), ("on", Field.Any), ("layout", Field.Any)),
@@ -62,6 +62,10 @@ namespace ExpeditionFramework.Core
         public static readonly Shape Intel = new Shape(("id", Field.Text), ("pool", Field.Text), ("chance", Field.Number), ("counts", Field.Numbers),
             ("title", Field.Any), ("description", Field.Any), ("effect", Field.Any), ("tone", Field.IntelTone), ("good", Field.Texts), ("when", Field.Any),
             ("told", Field.Flag));
+        // The game's volume sliders a rail can follow; "sound" follows none, like the game's own effects.
+        public static readonly string[] AudioTypes = { "music", "ambience", "sound" };
+        public static readonly Shape AudioRail = new Shape(("sounds", Field.Any), ("every", Field.Numbers), ("volume", Field.Number), ("type", Field.Text));
+        public static readonly Shape AudioEntry = new Shape(("audio", Field.Text), ("chance_to_skip", Field.Number));
         public static readonly Shape Hud = new Shape(("title", Field.Any), ("rows", Field.Any), ("enemies", Field.Any));
         public static readonly Shape HudRow = new Shape(("when", Field.Any), ("parts", Field.Any), ("separator", Field.Flag));
         public static readonly Shape HudEnemies = new Shape(("line", Field.Any), ("pending", Field.Any), ("none", Field.Any), ("pending_scenes", Field.Texts));

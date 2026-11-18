@@ -30,6 +30,7 @@ namespace ExpeditionFramework.Game
         private readonly IntelCards intel;
         private readonly TradeCounter trade = new TradeCounter();
         private readonly GameSounds sounds = new GameSounds();
+        private readonly AreaAudio audio;
         private readonly ItemReader bagReader;
 
         private GameObject stage;
@@ -55,6 +56,7 @@ namespace ExpeditionFramework.Game
         {
             this.content = content;
             this.area = area;
+            audio = new AreaAudio(area);
             bagReader = new ItemReader(content);
             map = new MapContext(area.Id, (pack, key, args) => ModHelper.GetLocalized(pack, key, args), name => GameValues.Get(name, area.Id), new SaveMemory());
             intel = new IntelCards(area, Id, map, IsDiscovered);
@@ -138,6 +140,9 @@ namespace ExpeditionFramework.Game
         public override void Arrive()
         {
             GameBridge.OpenAmmoBoxes();
+            // An empty ambience means none: the game then starts nothing, which would leave the store's ambience playing.
+            if (area.Ambience == "" && StoreSoundPlayer.Instance != null) StoreSoundPlayer.Instance.ambianceAudioSource.Stop();
+            audio.Start();
             run = new ExpeditionRun(content, area, new GameBridge(content, area, trade, sounds), sides => RNG.GetRandomInt(1, sides),
                 (pack, key, args) => ModHelper.GetLocalized(pack, key, args), ModEntry.L("ef_player"), intel.Today());
             run.Begin();
@@ -168,6 +173,7 @@ namespace ExpeditionFramework.Game
         {
             trade.Tick();
             sounds.Tick();
+            audio.Tick();
             if (run == null || window == null || !window.IsAlive)
             {
                 EndTrade();
@@ -203,6 +209,7 @@ namespace ExpeditionFramework.Game
 
         public override void Leave()
         {
+            audio.Stop();
             if (run == null) return;
             EndTrade();
             trade.Discard();

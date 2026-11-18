@@ -1075,6 +1075,7 @@ namespace ExpeditionFramework.Core
             d.Title = Text(n, "title", d.Pack, at, required: true);
             d.UnlockedBy = RefOrNull(n, "unlocked_by", "area", d.Pack, at);
             d.Ambience = Str(n, "ambience");
+            CompileAudio(d, n, at);
             d.Art = Str(n, "art");
             if (n.ContainsKey("hidden_when")) d.HiddenWhen = Condition(n["hidden_when"], d.Pack, at + ".hidden_when");
             d.Player = Stats(n, "player", d.Pack, at);
@@ -1140,6 +1141,54 @@ namespace ExpeditionFramework.Core
                 });
             }
             if (d.Layout.Count == 0) Problem(at + ".layout", "an area needs a layout");
+        }
+
+        // Sound ids aren't checked against anything: the game registers a mod's sound files on its own, after packs compile,
+        // and the sim has no sounds at all. A sound that never loaded is reported in the game log when it is picked.
+        private void CompileAudio(AreaDef d, Node n, string at)
+        {
+            int index = 0;
+            foreach (object e in List(n, "audio"))
+            {
+                string path = at + ".audio[" + index++ + "]";
+                if (!(e is Node node)) { Problem(path, "must be an object"); continue; }
+                CheckShape(node, Schema.AudioRail, path);
+                var rail = new AudioRail { Timed = node.ContainsKey("every") };
+                if (node.TryGetValue("volume", out object volume) && volume is double v)
+                {
+                    if (v < 0) Problem(path + ".volume", "can't be below 0");
+                    else rail.Volume = v;
+                }
+                if (node.TryGetValue("every", out object every))
+                {
+                    List<double> span = (every as List<object> ?? new List<object> { every }).OfType<double>().ToList();
+                    if (span.Count < 1 || span.Count > 2 || span[0] <= 0 || span[span.Count - 1] < span[0]) Problem(path + ".every", "must be seconds above 0, or [shortest, longest]");
+                    else
+                    {
+                        rail.EveryMin = span[0];
+                        rail.EveryMax = span[span.Count - 1];
+                    }
+                }
+                rail.Type = Str(node, "type") ?? (rail.Timed ? "sound" : "ambience");
+                if (Array.IndexOf(Schema.AudioTypes, rail.Type) < 0) Problem(path + ".type", "must be one of " + string.Join(", ", Schema.AudioTypes));
+                int soundIndex = 0;
+                foreach (object s in List(node, "sounds"))
+                {
+                    string soundPath = path + ".sounds[" + soundIndex++ + "]";
+                    if (!(s is Node sound)) { Problem(soundPath, "must be an object with \"audio\""); continue; }
+                    CheckShape(sound, Schema.AudioEntry, soundPath);
+                    var entry = new AudioEntry { Audio = Str(sound, "audio") };
+                    if (string.IsNullOrEmpty(entry.Audio)) Problem(soundPath + ".audio", "needs a sound id");
+                    if (sound.TryGetValue("chance_to_skip", out object skip) && skip is double chance)
+                    {
+                        if (chance < 0 || chance > 100) Problem(soundPath + ".chance_to_skip", "must be a percent from 0 to 100");
+                        else entry.SkipChance = chance;
+                    }
+                    rail.Sounds.Add(entry);
+                }
+                if (rail.Sounds.Count == 0) Problem(path + ".sounds", "needs at least one sound");
+                d.Audio.Add(rail);
+            }
         }
 
         private PackingDef CompilePacking(Node n, string pack, string at)

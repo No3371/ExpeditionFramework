@@ -47,6 +47,7 @@ internal static class Program
         TestMemory();
         TestMapMemory();
         TestIntelMax();
+        TestAreaAudio();
         TestToldIntel();
         TestCardKey();
         TestSelfTestPack();
@@ -743,6 +744,51 @@ internal static class Program
         var other = new MemoryStore();
         other.Set("b", "unlocked", 1);
         Check(area.HiddenWhen(new MapContext(area.Id, (p, k, a) => k, name => 0, other).Root), "another pack's memory doesn't unlock this area");
+    }
+
+    // An area's audio rails: a rail with "every" is timed and follows no slider, one without loops and follows the
+    // background slider, and each mistake is reported where it was written.
+    private static void TestAreaAudio()
+    {
+        string Pack(string audio) => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"" } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" } ], ""audio"": " + audio + @" } }
+        }";
+        Content content = Compiled(Pack(@"[
+          { ""type"": ""music"", ""volume"": 0.4, ""sounds"": [ { ""audio"": ""m:theme"" }, { ""audio"": ""m:other"", ""chance_to_skip"": 25 } ] },
+          { ""sounds"": { ""audio"": ""m:water"" } },
+          { ""every"": [ 15, 60 ], ""sounds"": [ { ""audio"": ""m:alarm"", ""chance_to_skip"": 50 } ] },
+          { ""every"": 30, ""sounds"": [ { ""audio"": ""m:drip"" } ] }
+        ]"));
+        string all = string.Join("; ", content.Problems.Concat(content.Warnings));
+        Check(all == "", "audio rails load cleanly: " + all);
+        List<AudioRail> rails = content.Areas["t:a"].Audio;
+        Check(rails.Count == 4, "every rail is kept, got " + rails.Count);
+        if (rails.Count == 4)
+        {
+            Check(!rails[0].Timed && rails[0].Type == "music" && rails[0].Volume == 0.4 && rails[0].Sounds.Count == 2, "a loop rail keeps its type, volume and sounds");
+            Check(rails[0].Sounds[0].SkipChance == 0 && rails[0].Sounds[1].SkipChance == 25 && rails[0].Sounds[1].Audio == "m:other", "a sound keeps its id and chance_to_skip");
+            Check(!rails[1].Timed && rails[1].Type == "ambience" && rails[1].Volume == 1 && rails[1].Sounds.Count == 1, "a loop rail defaults to ambience at full volume, and one sound needs no list");
+            Check(rails[2].Timed && rails[2].Type == "sound" && rails[2].EveryMin == 15 && rails[2].EveryMax == 60, "a timed rail keeps its span and defaults to sound");
+            Check(rails[3].Timed && rails[3].EveryMin == 30 && rails[3].EveryMax == 30, "a single every is a fixed wait");
+        }
+        Check(Compiled(Pack("[]")).Areas["t:a"].Audio.Count == 0, "an area may have no rails");
+
+        void Reports(string audio, string expected)
+        {
+            List<string> p = ProblemsIn(Pack(audio));
+            Check(p.Any(m => m.Contains(expected)), "expected a problem with \"" + expected + "\", got: " + string.Join("; ", p));
+        }
+        Reports(@"[ ""m:theme"" ]", "audio[0]: must be an object");
+        Reports(@"[ { ""sounds"": [] } ]", "audio[0].sounds: needs at least one sound");
+        Reports(@"[ { ""sounds"": [ ""m:theme"" ] } ]", "sounds[0]: must be an object");
+        Reports(@"[ { ""sounds"": [ { ""chance_to_skip"": 5 } ] } ]", "sounds[0].audio: needs a sound id");
+        Reports(@"[ { ""sounds"": [ { ""audio"": ""x"", ""chance_to_skip"": 101 } ] } ]", "chance_to_skip: must be a percent");
+        Reports(@"[ { ""every"": [ 60, 15 ], ""sounds"": [ { ""audio"": ""x"" } ] } ]", "every: must be seconds above 0");
+        Reports(@"[ { ""every"": 0, ""sounds"": [ { ""audio"": ""x"" } ] } ]", "every: must be seconds above 0");
+        Reports(@"[ { ""type"": ""bgm"", ""sounds"": [ { ""audio"": ""x"" } ] } ]", "type: must be one of music, ambience, sound");
+        Reports(@"[ { ""volume"": -1, ""sounds"": [ { ""audio"": ""x"" } ] } ]", "volume: can't be below 0");
+        Check(WarningsIn(Pack(@"[ { ""loop"": true, ""sounds"": [ { ""audio"": ""x"" } ] } ]")).Any(w => w.Contains("audio[0].loop: unknown key")), "an unknown rail key is warned about");
     }
 
     // intel_max trims the day's picks after every slot has rolled: earlier slots keep their cards first, the dice are the

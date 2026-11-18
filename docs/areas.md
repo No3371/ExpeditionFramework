@@ -39,7 +39,8 @@ sections after [Button groups](#button-groups) cover the fields most areas never
 | `pools` | object of id lists | Named lists of ids that layouts, effects and intel draw from. [Below](#pools) |
 | `unlocked_by` | area id | The area shows on the map only after that area has been cleared once |
 | `hidden_when` | condition | Keeps the area off the map while it holds. [Below](#on-the-map) |
-| `ambience` | text | The game's ambience id while there. Default `dumping_ground` |
+| `ambience` | text | The game's ambience id while there. Default `dumping_ground`; `""` plays none |
+| `audio` | list | Your own music, ambience and timed sounds, on as many rails as you like. [Below](#audio) |
 | `art` | text | The sprite shown behind the panel. Default: the area's own id |
 | `packing` | object | What the player must bring. [Below](#packing) |
 | `intel` | list | Daily rumour cards on the map. [Intel cards](intel.md) |
@@ -230,3 +231,41 @@ when an area provides them:
 On a d20, when `value` is positive, a natural roll at or below `low` (default 5) is rerolled with `value`% chance. When
 `value` is negative, a roll at or above `high` (default 16) is rerolled with -`value`% chance. Other dice are never
 changed.
+
+### Audio
+
+`audio` is a list of rails. Each rail is its own channel, so every rail plays at once: music over two ambience loops over
+an alarm that goes off now and then. The game's own `ambience` keeps playing under them; set `"ambience": ""` when
+your rails replace it.
+
+```json
+"ambience": "",
+"audio": [
+  { "type": "music", "volume": 0.6, "sounds": [ { "audio": "my_mod:theme_a" }, { "audio": "my_mod:theme_b" } ] },
+  { "volume": 0.3, "sounds": [ { "audio": "my_mod:cave" } ] },
+  { "sounds": [ { "audio": "my_mod:drips", "chance_to_skip": 50 } ] },
+  { "every": [15, 60], "sounds": [ { "audio": "my_mod:alarm", "chance_to_skip": 25 }, { "audio": "my_mod:clank" } ] }
+]
+```
+
+| Rail key | Default | What it does |
+|---|---|---|
+| `sounds` | required | The sounds this rail picks from, each `{ "audio": id, "chance_to_skip": percent }` |
+| `every` | none | Seconds between plays: one number, or `[shortest, longest]` for a random wait. Without it the rail loops |
+| `volume` | 1 | How loud the rail is, from 0 up. 1 is the file as it is |
+| `type` | `ambience`, or `sound` with `every` | Which volume setting the rail follows: `music`, `ambience` (the game's background volume) or `sound` (master volume only) |
+
+A rail without `every` picks one of its sounds when the player arrives and loops it until they leave. A rail with
+`every` waits, picks one of its sounds and plays it once, then waits again; the first play comes after a first wait.
+Every pick is even between the rail's sounds. `chance_to_skip` is the percent chance that the picked sound stays
+silent: for a loop the rail is quiet for that visit, for a timed rail that one play is skipped.
+
+What plays never touches the run's dice, so audio changes nothing about how a run rolls, and [ef-sim](testing.md) ignores
+it.
+
+#### Your own sound files
+
+The game loads every `.wav`, `.ogg` and `.mp3` in your mod's `Sounds` folder and names each one
+`MOD_ID:FILE_NAME`, without the extension: `Sounds/alarm.ogg` in the mod `my_mod` is `my_mod:alarm`. Those ids work
+in `audio`, in an action's [`sound`](actions.md) and in the [`sound` effect](effects.md), next to the game's own
+sound ids. A sound id nothing registered is skipped, with a line in the game log.

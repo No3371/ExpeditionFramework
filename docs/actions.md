@@ -37,7 +37,7 @@ target and item, and shows them in the actions window under their [group](areas.
 | `confirm` | Asks before acting. [Below](#confirm) |
 | `info` | Lines, icons and bars beside the button. [Below](#the-info-panel) |
 | `preview` | An expression for the odds shown, instead of the check's own |
-| `sound` | A game sound id played when pressed. `"item"` plays the item's own sound, with `sound_else` as the fallback |
+| `sound` | A game sound id, or one of [your own](areas.md#your-own-sound-files), played when pressed. `"item"` plays the item's own sound, with `sound_else` as the fallback |
 | `use` | A [shared interaction](packs.md#shared-pieces) to build on; other keys override it |
 
 An action needs `do` or `check`.

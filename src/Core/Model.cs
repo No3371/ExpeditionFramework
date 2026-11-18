@@ -325,11 +325,34 @@ namespace ExpeditionFramework.Core
         public HashSet<string> PendingScenes = new HashSet<string>();
     }
 
+    /// <summary>One sound a rail can play, and the percent chance it stays silent when picked.</summary>
+    public sealed class AudioEntry
+    {
+        public string Audio;
+        public double SkipChance;
+    }
+
+    /// <summary>
+    /// One channel of an area's audio. Rails play side by side. A rail without Timed picks one sound on arrival and loops
+    /// it; a Timed rail picks one every EveryMin to EveryMax seconds and plays it once.
+    /// </summary>
+    public sealed class AudioRail
+    {
+        public List<AudioEntry> Sounds = new List<AudioEntry>();
+        public bool Timed;
+        public double EveryMin;
+        public double EveryMax;
+        public double Volume = 1;
+        /// <summary>One of Schema.AudioTypes: which of the game's volume sliders the rail follows.</summary>
+        public string Type;
+    }
+
     public sealed class AreaDef : Def
     {
         public TextRef Title;
         public string UnlockedBy;
         public string Ambience;
+        public List<AudioRail> Audio = new List<AudioRail>();
         public string Art;
         public Condition HiddenWhen;
         public Dictionary<string, Value> Player = new Dictionary<string, Value>();

@@ -87,7 +87,7 @@ Every roll is noted in the log. On a button, `chance` and `die` checks show thei
 |---|---|
 | `{ "say": "key" }` or `{ "say": { "text": "key", "args": [...], "tone": "good" } }` | Logs a [line](text.md#lines). Tones: `good`, `bad`, `dim`, `heading`, `enemy`, `hint`, `plain` (default) |
 | `{ "hint": { "text": "key", "missing": filter } }` | Logs a hint, once per run per text, and only while no carried item matches `missing` |
-| `{ "sound": "id" }` | Plays a game sound |
+| `{ "sound": "id" }` | Plays a game sound, or one of [your own](areas.md#your-own-sound-files) |
 | `{ "event": ... }` | Starts an event. [Starting an event](rooms-events.md#starting-an-event) |
 | `{ "end_event": true }` | Closes the open event |
 | `{ "stay": true }` | Keeps the open event open after this choice |
