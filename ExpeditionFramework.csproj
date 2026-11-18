@@ -48,10 +48,12 @@
     <ItemGroup>
       <Localization Include="Localization\*.csv" />
       <Packs Include="ExpeditionFramework\*.json" />
+      <Sounds Include="Sounds\*.ogg" />
     </ItemGroup>
     <Copy SourceFiles="$(TargetPath);$(OutDir)ExpeditionFramework.Api.dll;$(OutDir)ZohFramework.Api.dll;manifest.xml" DestinationFolder="$(InstallDir)" />
     <Copy SourceFiles="@(Localization)" DestinationFolder="$(InstallDir)Localization\" />
     <Copy SourceFiles="@(Packs)" DestinationFolder="$(InstallDir)ExpeditionFramework\" />
+    <Copy SourceFiles="@(Sounds)" DestinationFolder="$(InstallDir)Sounds\" />
   </Target>
 
 </Project>

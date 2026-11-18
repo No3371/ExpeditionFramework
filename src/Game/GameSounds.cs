@@ -12,7 +12,20 @@ namespace ExpeditionFramework.Game
         private const float ShotFallback = 0.35f;
         private const float ShotMinClip = 0.5f;
 
+        private const int DiceHeard = 4;
+        private const float DiceGap = 0.14f;
+
         private static readonly Dictionary<AudioClip, float> ShotLengths = new Dictionary<AudioClip, float>();
+        private static readonly HashSet<string> Reported = new HashSet<string>();
+
+        // The framework's own Sounds/dice file, registered by the game under the framework's mod id.
+        private static readonly SoundSpec Dice = new SoundSpec
+        {
+            Sounds = { new AudioEntry { Audio = "expedition_framework:dice" } },
+            VolumeMin = 0.45, VolumeMax = 0.6, PitchMin = 0.92, PitchMax = 1.1,
+        };
+
+        private readonly List<(SoundSpec Spec, float At)> queued = new List<(SoundSpec, float)>();
 
         private readonly List<(string Id, float At)> later = new List<(string, float)>();
         private readonly HashSet<string> thisFrame = new HashSet<string>();
@@ -32,9 +45,62 @@ namespace ExpeditionFramework.Game
                 PlayNow(later[i].Id);
                 later.RemoveAt(i);
             }
+            for (int i = queued.Count - 1; i >= 0; i--)
+            {
+                if (Time.unscaledTime < queued[i].At) continue;
+                SoundSpec spec = queued[i].Spec;
+                queued.RemoveAt(i);
+                PlayOne(spec);
+            }
         }
 
-        public void Clear() => later.Clear();
+        public void Clear()
+        {
+            later.Clear();
+            queued.Clear();
+        }
+
+        public void Play(SoundSpec spec)
+        {
+            for (int i = 0; i < spec.Repeat; i++) Queue(spec, (float)(spec.Delay + i * spec.Gap));
+        }
+
+        // One roll per die, a beat apart. A handful is as many as the ear tells apart, so a big pool isn't a long rattle.
+        public void PlayDice(int count)
+        {
+            for (int i = 0; i < Mathf.Min(count, DiceHeard); i++) Queue(Dice, i * DiceGap);
+        }
+
+        private void Queue(SoundSpec spec, float wait)
+        {
+            if (wait <= 0f) PlayOne(spec);
+            else queued.Add((spec, Time.unscaledTime + wait));
+        }
+
+        // Each play gets a source of its own: pitch belongs to the source, and the game's shared channels would cut one
+        // play with the next.
+        private static void PlayOne(SoundSpec spec)
+        {
+            AudioEntry entry = spec.Sounds[Random.Range(0, spec.Sounds.Count)];
+            if (Random.value * 100f < entry.SkipChance) return;
+            AudioDirectory directory = AudioManager.Instance.audioDirectory;
+            if (!directory.HasAudioClip(entry.Audio))
+            {
+                if (Reported.Add(entry.Audio)) ModEntry.Log.Warning("Sound: no sound is registered as \"" + entry.Audio + "\"");
+                return;
+            }
+            AudioClip clip = directory.GetAudioClip(entry.Audio);
+            AudioSource like = AudioManager.Instance.audioSource2;
+            var host = new GameObject("ExpeditionFramework.Sound");
+            var source = host.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.outputAudioMixerGroup = like.outputAudioMixerGroup;
+            source.volume = like.volume * Random.Range((float)spec.VolumeMin, (float)spec.VolumeMax);
+            source.pitch = Random.Range((float)spec.PitchMin, (float)spec.PitchMax);
+            source.clip = clip;
+            source.Play();
+            Object.Destroy(host, clip.length / source.pitch + 0.2f);
+        }
 
         public void Play(string id)
         {

@@ -88,6 +88,7 @@ Every roll is noted in the log. On a button, `chance` and `die` checks show thei
 | `{ "say": "key" }` or `{ "say": { "text": "key", "args": [...], "tone": "good" } }` | Logs a [line](text.md#lines). Tones: `good`, `bad`, `dim`, `heading`, `enemy`, `hint`, `plain` (default) |
 | `{ "hint": { "text": "key", "missing": filter } }` | Logs a hint, once per run per text, and only while no carried item matches `missing` |
 | `{ "sound": "id" }` | Plays a game sound, or one of [your own](areas.md#your-own-sound-files) |
+| `{ "sound": { "sounds": [ { "audio": "id", "chance_to_skip": 0 } ] } }` | Plays one of the listed sounds, picked evenly each time; `chance_to_skip` is the percent chance the pick stays silent. Optional keys: `delay` (seconds before the first play), `repeat` (how many plays, default 1), `gap` (seconds between repeats, default 0.12), `volume` and `pitch` (default 1; a number, or `[least, most]` for a new value each play). Never uses the run's dice |
 | `{ "event": ... }` | Starts an event. [Starting an event](rooms-events.md#starting-an-event) |
 | `{ "end_event": true }` | Closes the open event |
 | `{ "stay": true }` | Keeps the open event open after this choice |

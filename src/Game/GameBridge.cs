@@ -196,6 +196,10 @@ namespace ExpeditionFramework.Game
 
         public void PlayItemSound(RunItem item, string fallback) => sounds.PlayItem(item, fallback);
 
+        public void PlaySounds(SoundSpec spec) => sounds.Play(spec);
+
+        public void PlayDice(int count) => sounds.PlayDice(count);
+
         public bool OpenTrade(TradeRequest request) => counter.Open(request);
 
         public TradeResult CloseTrade() => counter.Close();

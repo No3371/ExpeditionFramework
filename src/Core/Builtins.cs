@@ -417,7 +417,17 @@ namespace ExpeditionFramework.Core
                     if (s.Run.FirstTime("hint:" + line.Render(s))) s.Run.Say("hint", line, s);
                 };
             };
-            r.Effects["sound"] = c => { string id = c.Require("value"); return s => s.Run.PlaySound(id); };
+            r.Effects["sound"] = c =>
+            {
+                if (c.Has("sounds"))
+                {
+                    SoundSpec spec = ((PackLoader.Spec)c).Sound();
+                    // Only a run has anything to play through; on the map there is no bridge.
+                    return s => (s.Run as ExpeditionRun)?.PlaySounds(spec);
+                }
+                string id = c.Require("value");
+                return s => s.Run.PlaySound(id);
+            };
             r.Effects["event"] = c =>
             {
                 if (c.Has("scheduled"))

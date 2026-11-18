@@ -48,6 +48,7 @@ internal static class Program
         TestMapMemory();
         TestIntelMax();
         TestAreaAudio();
+        TestSoundsAndDice();
         TestToldIntel();
         TestCardKey();
         TestSelfTestPack();
@@ -744,6 +745,62 @@ internal static class Program
         var other = new MemoryStore();
         other.Set("b", "unlocked", 1);
         Check(area.HiddenWhen(new MapContext(area.Id, (p, k, a) => k, name => 0, other).Root), "another pack's memory doesn't unlock this area");
+    }
+
+    // The sound effect's object form reaches the bridge as written, and an action's dice are counted for it: one for the
+    // check and one per die that dice() threw, but nothing for the dice of a label being drawn.
+    private static void TestSoundsAndDice()
+    {
+        string Pack(string sound) => @"{
+          ""rooms"": { ""r"": { ""text"": ""k"", ""interactions"": [
+            { ""id"": ""go"", ""label"": ""k"", ""stay"": true,
+              ""do"": [ { ""set"": { ""var"": ""run.x"", ""value"": ""dice(3, 6)"" } }, { ""sound"": " + sound + @" } ],
+              ""check"": { ""die"": 20, ""dc"": 5, ""success"": [], ""failure"": [] } },
+            { ""id"": ""quiet"", ""label"": ""k"", ""stay"": true, ""do"": [ { ""sound"": ""debris"" } ] }
+          ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 1 }, ""layout"": [ { ""room"": ""r"" }, { ""room"": ""r"" } ] } }
+        }";
+        const string Full = @"{ ""sounds"": [ { ""audio"": ""m:a"" }, { ""audio"": ""m:b"", ""chance_to_skip"": 10 } ], ""delay"": 0.5, ""repeat"": 3, ""gap"": 0.2, ""volume"": 0.8, ""pitch"": [ 0.9, 1.1 ] }";
+        Content content = Compiled(Pack(Full));
+        string all = string.Join("; ", content.Problems.Concat(content.Warnings));
+        Check(all == "", "a full sound loads cleanly: " + all);
+        if (all != "") return;
+        var bridge = new FakeBridge(new Random(1));
+        var run = new ExpeditionRun(content, content.Areas["t:a"], bridge, n => 1, (p, k, a) => k, "you");
+        run.Begin();
+        run.Options();
+        Check(bridge.Dice == 0, "drawing the actions throws no dice, got " + bridge.Dice);
+        run.Perform(run.Options().First(o => o.Interaction.Id == "quiet"));
+        Check(bridge.Dice == 0 && bridge.Played == null, "an action without dice or a sound list asks for neither");
+        run.Perform(run.Options().First(o => o.Interaction.Id == "go"));
+        Check(bridge.Dice == 4, "a check and dice(3, 6) are four dice, got " + bridge.Dice);
+        SoundSpec spec = bridge.Played;
+        Check(spec != null, "the sound list reaches the bridge");
+        if (spec != null)
+        {
+            Check(spec.Sounds.Count == 2 && spec.Sounds[0].Audio == "m:a" && spec.Sounds[1].SkipChance == 10, "the sounds keep their ids and chance_to_skip");
+            Check(spec.Delay == 0.5 && spec.Repeat == 3 && spec.Gap == 0.2, "delay, repeat and gap are kept");
+            Check(spec.VolumeMin == 0.8 && spec.VolumeMax == 0.8 && spec.PitchMin == 0.9 && spec.PitchMax == 1.1, "a number is a fixed value and a pair is a range");
+        }
+        Content plain = Compiled(Pack(@"{ ""sounds"": [ { ""audio"": ""m:a"" } ] }"));
+        var plainBridge = new FakeBridge(new Random(1));
+        var plainRun = new ExpeditionRun(plain, plain.Areas["t:a"], plainBridge, n => 1, (p, k, a) => k, "you");
+        plainRun.Begin();
+        plainRun.Perform(plainRun.Options().First(o => o.Interaction.Id == "go"));
+        SoundSpec bare = plainBridge.Played;
+        Check(bare != null && bare.Delay == 0 && bare.Repeat == 1 && bare.VolumeMin == 1 && bare.PitchMax == 1, "a bare sound list plays once, now, as the file is");
+
+        void Reports(string sound, string expected)
+        {
+            List<string> p = ProblemsIn(Pack(sound));
+            Check(p.Any(m => m.Contains(expected)), "expected a problem with \"" + expected + "\", got: " + string.Join("; ", p));
+        }
+        Reports(@"{ ""sounds"": [] }", "needs \"sounds\"");
+        Reports(@"{ ""sounds"": [ { ""chance_to_skip"": 5 } ] }", "needs \"audio\"");
+        Reports(@"{ ""sounds"": [ { ""audio"": ""x"", ""chance_to_skip"": 101 } ] }", "chance_to_skip: must be a number from 0 to 100");
+        Reports(@"{ ""sounds"": [ { ""audio"": ""x"" } ], ""pitch"": [ 1.2, 0.8 ] }", "pitch: must be a number from 0.25 to 4");
+        Reports(@"{ ""sounds"": [ { ""audio"": ""x"" } ], ""volume"": ""loud"" }", "volume: must be a number from 0 to 4");
+        Check(WarningsIn(Pack(@"{ ""sounds"": [ { ""audio"": ""x"" } ], ""loop"": true }")).Any(w => w.Contains("loop")), "an unknown sound key is warned about");
     }
 
     // An area's audio rails: a rail with "every" is timed and follows no slider, one without loops and follows the
@@ -1835,6 +1892,10 @@ internal static class Program
         public void NightLog(string text, string color) => NightLogs.Add((text, color));
         public void PlaySound(string id) { }
         public void PlayItemSound(RunItem item, string fallback) { }
+        public SoundSpec Played;
+        public int Dice;
+        public void PlaySounds(SoundSpec spec) => Played = spec;
+        public void PlayDice(int count) => Dice += count;
         public bool OpenTrade(TradeRequest request) => false;
         public TradeResult CloseTrade() => new TradeResult();
         public List<string> TakeCart(TradeRequest cart) => new List<string>();

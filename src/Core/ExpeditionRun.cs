@@ -311,9 +311,21 @@ namespace ExpeditionFramework.Core
         private int rendering;
         public int Roll(int sides) => sides <= 0 ? 0 : rendering > 0 ? 1 : roll(sides);
 
+        // Dice the player's action has thrown so far, for the bridge to sound out. Roll itself isn't counted: it also picks
+        // text variants and weighted entries, which nobody would call a die.
+        private int diceThrown;
+
+        internal void CountDice(int count)
+        {
+            if (rendering == 0) diceThrown += count;
+        }
+
+        internal void PlaySounds(SoundSpec spec) => Bridge.PlaySounds(spec);
+
         /// <summary>A die for a check. On a d20 the area's luck rule can reroll a low result, or spoil a high one.</summary>
         public int RollCheck(int sides)
         {
+            CountDice(1);
             var decision = new Decision("check", root, RollWithLuck(sides));
             decision.Set("sides", sides);
             return Decide(decision).Value;
@@ -968,7 +980,10 @@ namespace ExpeditionFramework.Core
             // "item" plays the item's own sound, so each gun sounds like itself.
             if (i.Sound == "item") Bridge.PlayItemSound(option.Item, i.SoundElse);
             else if (!string.IsNullOrEmpty(i.Sound)) Bridge.PlaySound(i.Sound);
+            diceThrown = 0;
             i.Body(scope);
+            // Sounded before the enemies answer, so only the player's own dice are heard.
+            if (diceThrown > 0) Bridge.PlayDice(diceThrown);
             if (Over) return;
             if (ownChoice && currentEvent != null && !moved && !stayInEvent && !i.Stay) EndEvent();
             if (startedIn == "combat" && Scene == "combat" && i.TakesTurn) EnemyTurn();

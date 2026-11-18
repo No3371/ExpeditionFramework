@@ -1990,6 +1990,42 @@ namespace ExpeditionFramework.Core
                 return loader.UseOf(Args, PackId, Path, checkShape: false);
             }
 
+            internal SoundSpec Sound()
+            {
+                var spec = new SoundSpec { Repeat = Math.Max(1, Number("repeat", 1)) };
+                foreach (ISpec e in Entries("sounds"))
+                {
+                    var entry = (Spec)e;
+                    var sound = new AudioEntry { Audio = entry.Require("audio") };
+                    entry.Span("chance_to_skip", 0, 0, 100, out sound.SkipChance, out _);
+                    spec.Sounds.Add(sound);
+                }
+                if (spec.Sounds.Count == 0) Error("needs \"sounds\": a list of { \"audio\": id }");
+                Span("delay", 0, 0, 60, out spec.Delay, out _);
+                Span("gap", 0.12, 0, 60, out spec.Gap, out _);
+                Span("volume", 1, 0, 4, out spec.VolumeMin, out spec.VolumeMax);
+                Span("pitch", 1, 0.25, 4, out spec.PitchMin, out spec.PitchMax);
+                return spec;
+            }
+
+            // A decimal, or [least, most] for a value picked anew each time. Value() can't read these: it compiles whole-number expressions.
+            private void Span(string key, double fallback, double least, double most, out double min, out double max)
+            {
+                read.Add(key);
+                min = max = fallback;
+                if (!Args.TryGetValue(key, out object v) || v == null) return;
+                var given = v as List<object> ?? new List<object> { v };
+                List<double> span = given.OfType<double>().ToList();
+                if (span.Count != given.Count || span.Count < 1 || span.Count > 2 || span[0] < least || span[span.Count - 1] > most || span[span.Count - 1] < span[0])
+                {
+                    System.Globalization.CultureInfo plain = System.Globalization.CultureInfo.InvariantCulture;
+                    loader.Problem(Path + "." + key, "must be a number from " + least.ToString(plain) + " to " + most.ToString(plain) + ", or [least, most]");
+                    return;
+                }
+                min = span[0];
+                max = span[span.Count - 1];
+            }
+
             public string Require(string key)
             {
                 string text = Text(key);

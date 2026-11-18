@@ -333,6 +333,22 @@ namespace ExpeditionFramework.Core
     }
 
     /// <summary>
+    /// What the sound effect's object form asks for: one of Sounds picked each time it plays, Repeat times Gap seconds
+    /// apart, starting Delay seconds late, each play at its own volume and pitch from the two ranges.
+    /// </summary>
+    public sealed class SoundSpec
+    {
+        public List<AudioEntry> Sounds = new List<AudioEntry>();
+        public double Delay;
+        public int Repeat = 1;
+        public double Gap;
+        public double VolumeMin = 1;
+        public double VolumeMax = 1;
+        public double PitchMin = 1;
+        public double PitchMax = 1;
+    }
+
+    /// <summary>
     /// One channel of an area's audio. Rails play side by side. A rail without Timed picks one sound on arrival and loops
     /// it; a Timed rail picks one every EveryMin to EveryMax seconds and plays it once.
     /// </summary>
@@ -503,6 +519,9 @@ namespace ExpeditionFramework.Core
         void NightLog(string text, string color);
         void PlaySound(string id);
         void PlayItemSound(RunItem item, string fallback);
+        void PlaySounds(SoundSpec spec);
+        /// <summary>The player's action threw this many dice: checks, and dice() in what the action did.</summary>
+        void PlayDice(int count);
         bool OpenTrade(TradeRequest request);
         TradeResult CloseTrade();
         /// <summary>Puts what's left on a trader's cart on the ground and returns the names.</summary>

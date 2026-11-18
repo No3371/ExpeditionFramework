@@ -122,6 +122,8 @@ internal sealed class KitBridge : IBridge
     public IReadOnlyDictionary<string, double> ReputationNow => reputation;
     public void PlaySound(string id) { }
     public void PlayItemSound(RunItem item, string fallback) { }
+    public void PlaySounds(SoundSpec spec) { }
+    public void PlayDice(int count) { }
     public bool OpenTrade(TradeRequest request) => settings.TradeOpens;
     public TradeResult CloseTrade() => new TradeResult { CashChange = settings.LoseCashUpTo is int most ? -random.Next(0, most + 1) : 0 };
     public List<string> TakeCart(TradeRequest cart) => new List<string>(settings.Cart);
