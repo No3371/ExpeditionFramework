@@ -48,7 +48,6 @@ if (-not $DryRun -and -not $SteamUser) {
     throw 'No Steam login. Pass -SteamUser <login> or set $env:STEAM_USER.'
 }
 
-# --- Test & build ---------------------------------------------------------
 if (-not $SkipTests) {
     Write-Host '==> Running the engine tests' -ForegroundColor Cyan
     dotnet run -c Release --project (Join-Path $root 'tests/Sim')
@@ -72,7 +71,6 @@ Get-ChildItem $contentDir -Recurse -File | ForEach-Object {
     '      ' + [IO.Path]::GetRelativePath($contentDir, $_.FullName)
 }
 
-# --- VDF ------------------------------------------------------------------
 function Format-Vdf([string]$s) { '"' + ($s -replace '\\', '\\' -replace '"', '\"') + '"' }
 
 $fields = [ordered]@{
@@ -109,7 +107,6 @@ if ($DryRun) {
     return
 }
 
-# --- Upload ---------------------------------------------------------------
 # Interactive: steamcmd asks for the password and Steam Guard code on the
 # first login, then reuses its cached session.
 & $SteamCmd +login $SteamUser +workshop_build_item $vdfPath +quit

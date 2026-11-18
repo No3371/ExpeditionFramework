@@ -97,7 +97,8 @@ internal sealed class KitBridge : IBridge
 
     // Reputation this run changed, by faction: later reads see it, as in the game. It starts from the seeded
     // rep_exact.FACTION (hundredths) or else rep.FACTION. Every faction exists, clamped as the game clamps, nothing scaled.
-    // The world's when the row carries one (a "days" row's nights share it), else this night's own.
+    // The dictionary belongs to the row's world when the row has one, so the nights of a "days" row share it; otherwise
+    // it is this night's own.
     private readonly Dictionary<string, double> reputation;
     private double Rep(string faction) =>
         reputation.TryGetValue(faction, out double changed) ? changed

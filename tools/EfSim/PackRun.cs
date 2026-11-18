@@ -297,7 +297,7 @@ internal static class PackRun
 
     // Today's intel as the map would show it: each slot's picks as pool entries, its when read against this night's game
     // and memory. The game shows only cards whose afterhour event started; every rolled pick counts here.
-    // A coin game read in a when draws from the run's random.
+    // A when that reads a coin game (a game value the sim flips a coin for) draws that flip from the run's random.
     private static Dictionary<string, List<string>> RollIntel(AreaDef area, KitBridge bridge, IMemory memory, Localizer localize, Random random,
         Dictionary<string, int> nights)
     {

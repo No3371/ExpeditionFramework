@@ -454,10 +454,9 @@ namespace ExpeditionFramework.Core
             r.Effects["schedule"] = CompileSchedule;
             r.Effects["unschedule"] = c => { Value at = c.Value("value", 0); return s => s.Run.Flow.Unschedule(at(s)); };
             r.Effects["wound"] = c => { string kind = c.Require("value"); return s => s.Run.Wound(kind); };
-            // Changes reputation with a faction by a decimal amount and logs it the way the game logs its own overnight
-            // reputation changes: its own text, green for a gain, red for a loss. The amount is kept in hundredths: value is a
-            // whole-number expression or a literal with up to two decimals, value_x100 an expression in hundredths. night_log
-            // replaces the text (arg.rep is the whole part, arg.rep_x100 the hundredths, run.$rep the amount as +0.5), quiet logs nothing.
+            // Changes reputation with a faction by a decimal amount (ReputationAmount reads it) and logs it the way the game
+            // logs its own overnight reputation changes: its own text, green for a gain, red for a loss. night_log replaces
+            // the text (arg.rep is the whole part, arg.rep_x100 the hundredths, run.$rep the amount as +0.5), quiet logs nothing.
             r.Effects["reputation"] = c =>
             {
                 string faction = c.Require("faction");
@@ -872,7 +871,6 @@ namespace ExpeditionFramework.Core
             r.Effects["lose_found"] = c => s => s.Run.Inventory.LoseFound();
         }
 
-        /// <summary>{"value": table}, {"from": [tables], "index": n} for tiers, or {"drops_of": who} for what someone carries.</summary>
         // The reputation effect's amount in hundredths: exactly one of value (a whole-number expression, or a number with
         // at most two decimals) and value_x100 (an expression in hundredths).
         private static Value ReputationAmount(ISpec c)
@@ -899,6 +897,7 @@ namespace ExpeditionFramework.Core
             return s => amount(s) * 100;
         }
 
+        /// <summary>{"value": table}, {"from": [tables], "index": n} for tiers, or {"drops_of": who} for what someone carries.</summary>
         private static Effect CompileGiveLoot(ISpec c)
         {
             if (c.Has("drops_of"))

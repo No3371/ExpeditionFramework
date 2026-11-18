@@ -9,7 +9,8 @@ namespace ExpeditionFramework.Core
         /// The longer and shorter side of the smallest box around the filled cells, or (0, 0) when none is filled. It measures
         /// the box, not the grid: a sprite's grid can carry empty rows or columns, and counting them would make an item longer
         /// than it looks. A diagonal item fills a square box, so it reads its length in grid steps as reach and its breadth
-        /// shows it isn't straight. Packs that want the diagonal longer can combine the two; a single rounded length would hide which it was.
+        /// shows it isn't straight. Packs that want the diagonal longer can combine the two; a single rounded length would
+        /// hide which it was.
         /// </summary>
         public static (int Reach, int Breadth) Measure(int width, int height, Func<int, int, bool> filled)
         {
