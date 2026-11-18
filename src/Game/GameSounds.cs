@@ -12,18 +12,11 @@ namespace ExpeditionFramework.Game
         private const float ShotFallback = 0.35f;
         private const float ShotMinClip = 0.5f;
 
-        private const int DiceHeard = 4;
-        private const float DiceGap = 0.14f;
+        // Seconds a windowed sound takes to fade in and out, when it names no fade of its own.
+        private const float WindowFade = 0.4f;
 
         private static readonly Dictionary<AudioClip, float> ShotLengths = new Dictionary<AudioClip, float>();
         private static readonly HashSet<string> Reported = new HashSet<string>();
-
-        // The framework's own Sounds/dice file, registered by the game under the framework's mod id.
-        private static readonly SoundSpec Dice = new SoundSpec
-        {
-            Sounds = { new AudioEntry { Audio = "expedition_framework:dice" } },
-            VolumeMin = 0.45, VolumeMax = 0.6, PitchMin = 0.92, PitchMax = 1.1,
-        };
 
         // A sound that is kept track of after it starts: it has a channel to stop it by, something it waits for, a loop or a fade.
         private sealed class Voice
@@ -33,6 +26,9 @@ namespace ExpeditionFramework.Game
             public AudioSource Source;
             public float Full;
             public float Level;
+            public float Fade;
+            // Where in the clip, in seconds, a windowed sound starts fading out. 0 for a sound that plays to its end.
+            public float EndAt;
             public bool Stopping;
         }
 
@@ -70,7 +66,8 @@ namespace ExpeditionFramework.Game
                 bool gone = voice.Source == null;
                 if (!gone)
                 {
-                    float fade = (float)voice.Spec.Fade;
+                    float fade = voice.Fade;
+                    if (voice.EndAt > 0f && voice.Source.time >= voice.EndAt) voice.Stopping = true;
                     float target = voice.Stopping ? 0f : 1f;
                     voice.Level = fade > 0f ? Mathf.MoveTowards(voice.Level, target, Time.unscaledDeltaTime / fade) : target;
                     voice.Source.volume = voice.Full * voice.Level;
@@ -108,12 +105,6 @@ namespace ExpeditionFramework.Game
             for (int i = 0; i < spec.Repeat; i++) Queue(spec, (float)(spec.Delay + i * spec.Gap));
         }
 
-        // One roll per die, a beat apart. A handful is as many as the ear tells apart, so a big pool isn't a long rattle.
-        public void PlayDice(int count)
-        {
-            for (int i = 0; i < Mathf.Min(count, DiceHeard); i++) Queue(Dice, i * DiceGap);
-        }
-
         private void Queue(SoundSpec spec, float wait)
         {
             if (wait <= 0f) PlayOne(spec);
@@ -141,7 +132,10 @@ namespace ExpeditionFramework.Game
             float full = like.volume * Random.Range((float)spec.VolumeMin, (float)spec.VolumeMax);
             source.pitch = Random.Range((float)spec.PitchMin, (float)spec.PitchMax);
             source.clip = clip;
-            if (!spec.Held)
+            // The window is in seconds heard, so a pitched clip covers more or less of the file in it.
+            float span = (float)spec.Window * source.pitch;
+            bool windowed = spec.Window > 0 && clip.length > span;
+            if (!spec.Held && !windowed)
             {
                 source.volume = full;
                 source.Play();
@@ -150,8 +144,16 @@ namespace ExpeditionFramework.Game
             }
             // One sound per channel: the newcomer takes over as the old one fades.
             if (spec.Channel != null) foreach (Voice old in voices) if (old.Spec.Channel == spec.Channel) old.Stopping = true;
-            var voice = new Voice { Spec = spec, Host = host, Source = source, Full = full, Level = spec.Fade > 0 ? 0f : 1f };
+            var voice = new Voice { Spec = spec, Host = host, Source = source, Full = full, Fade = (float)spec.Fade, Level = spec.Fade > 0 ? 0f : 1f };
             source.loop = spec.Loop;
+            if (windowed)
+            {
+                // A stretch of the file from a random start, faded at both ends so neither cut is heard.
+                voice.Fade = Mathf.Min(spec.Fade > 0 ? (float)spec.Fade : WindowFade, (float)spec.Window / 3f);
+                voice.Level = 0f;
+                source.time = Random.Range(0f, clip.length - span);
+                voice.EndAt = source.time + span - voice.Fade * source.pitch;
+            }
             source.volume = full * voice.Level;
             source.Play();
             voices.Add(voice);

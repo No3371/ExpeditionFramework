@@ -202,8 +202,6 @@ namespace ExpeditionFramework.Game
 
         public void EndSounds(string until) => sounds.End(until);
 
-        public void PlayDice(int count) => sounds.PlayDice(count);
-
         public bool OpenTrade(TradeRequest request) => counter.Open(request);
 
         public TradeResult CloseTrade() => counter.Close();

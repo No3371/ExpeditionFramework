@@ -407,7 +407,6 @@ namespace ExpeditionFramework.Core
         private static int Sum(IScope s, int count, int sides)
         {
             int total = 0;
-            if (s.Run is ExpeditionRun run) run.CountDice(count);
             for (int i = 0; i < count; i++) total += s.Run.Roll(sides);
             return total;
         }

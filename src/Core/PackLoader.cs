@@ -2018,12 +2018,14 @@ namespace ExpeditionFramework.Core
                 Span("volume", 1, 0, 4, out spec.VolumeMin, out spec.VolumeMax);
                 Span("pitch", 1, 0.25, 4, out spec.PitchMin, out spec.PitchMax);
                 Span("fade", 0, 0, 60, out spec.Fade, out _);
+                Span("window", 0, 0, 60, out spec.Window, out _);
                 spec.Channel = Text("channel");
                 spec.Until = Text("until");
                 spec.Loop = Flag("loop", false);
                 if (spec.Until != null && Array.IndexOf(Schema.SoundUntil, spec.Until) < 0) Error("until must be one of " + string.Join(", ", Schema.SoundUntil));
                 // Nothing could ever end it: the run only stops sounds it can name or that wait for something.
                 if (spec.Loop && spec.Channel == null && spec.Until == null) Error("a looping sound needs \"channel\" or \"until\"");
+                if (spec.Window > 0 && spec.Loop) Error("window can't go with loop: a loop has no end to fade out before");
                 if (spec.Held && spec.Repeat > 1) Error("repeat can't go with channel, until, loop or fade: each play would replace the one before");
                 return spec;
             }

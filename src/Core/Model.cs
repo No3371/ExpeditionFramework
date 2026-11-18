@@ -352,6 +352,8 @@ namespace ExpeditionFramework.Core
         public string Until;
         public double Fade;
         public bool Loop;
+        /// <summary>The most seconds of a file one play lets be heard: a longer file plays that long from a random start, faded in and out. 0 for the whole file.</summary>
+        public double Window;
         /// <summary>True when the sound has to be kept track of after it starts, instead of played and forgotten.</summary>
         public bool Held => Channel != null || Until != null || Loop || Fade > 0;
     }
@@ -538,8 +540,6 @@ namespace ExpeditionFramework.Core
         void StopSound(string channel);
         /// <summary>Something in Schema.SoundUntil happened; sounds held until it end.</summary>
         void EndSounds(string until);
-        /// <summary>The player's action threw this many dice: checks, and dice() in what the action did.</summary>
-        void PlayDice(int count);
         bool OpenTrade(TradeRequest request);
         TradeResult CloseTrade();
         /// <summary>Puts what's left on a trader's cart on the ground and returns the names.</summary>
