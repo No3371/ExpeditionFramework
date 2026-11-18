@@ -61,7 +61,8 @@ pool of every told slot needs its key; a missing one is shown to the player as t
 
 ## An example story
 
-Story syntax is ZoH Framework's; its README is the reference for it, and for the `smalltalk` header used here.
+Story syntax is ZoH Framework's; its [documentation](../../ZohFramework/docs/README.md) is the reference for it, and
+its [Small talk](../../ZohFramework/docs/small-talk.md) page for the `smalltalk` header used here.
 
 ```zoh
 Yard rumours
