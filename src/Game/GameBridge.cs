@@ -198,6 +198,10 @@ namespace ExpeditionFramework.Game
 
         public void PlaySounds(SoundSpec spec) => sounds.Play(spec);
 
+        public void StopSound(string channel) => sounds.Stop(channel);
+
+        public void EndSounds(string until) => sounds.End(until);
+
         public void PlayDice(int count) => sounds.PlayDice(count);
 
         public bool OpenTrade(TradeRequest request) => counter.Open(request);

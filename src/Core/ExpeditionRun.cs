@@ -186,7 +186,7 @@ namespace ExpeditionFramework.Core
         public static readonly string[] HookNames =
         {
             "run_start", "room_enter", "combat_start", "turn_start", "turn_end", "combat_end",
-            "damaged", "defeated", "knocked_out", "after_action", "run_end",
+            "damaged", "defeated", "knocked_out", "after_action", "run_end", "appeared",
         };
 
         public static readonly string[] DecisionNames = { "damage", "heal", "check", "chance", "status", "loot", "intent" };
@@ -321,6 +321,16 @@ namespace ExpeditionFramework.Core
         }
 
         internal void PlaySounds(SoundSpec spec) => Bridge.PlaySounds(spec);
+
+        internal void StopSound(string channel) => Bridge.StopSound(channel);
+
+        /// <summary>Whether a condition written outside any action holds right now, with dice reading 1 as they do for labels.</summary>
+        public bool Holds(Condition condition)
+        {
+            rendering++;
+            try { return condition(root); }
+            finally { rendering--; }
+        }
 
         /// <summary>A die for a check. On a d20 the area's luck rule can reroll a low result, or spoil a high one.</summary>
         public int RollCheck(int sides)
@@ -567,6 +577,7 @@ namespace ExpeditionFramework.Core
         private void EnterRoom(RoomDef next)
         {
             room = next;
+            Bridge.EndSounds("room");
             usedThisRoom.Clear();
             Scene = "room";
             if (room.Text != null) Say("heading", room.Text, root);
@@ -628,6 +639,8 @@ namespace ExpeditionFramework.Core
                 prepare?.Invoke(new Scope(this, Hero, e, null));
             }
             SetFocus(enemies.FirstOrDefault(e => e.Active));
+            foreach (Entity e in enemies.Where(e => e.Active).ToList()) Emit("appeared", e, Hero);
+            if (Over || Scene != "combat") return;
             Emit("combat_start", Hero, null);
             if (Over || Scene != "combat") return;
             foreach (Entity e in enemies.Where(e => e.Active)) Telegraph(e);
@@ -648,11 +661,13 @@ namespace ExpeditionFramework.Core
             arrival.Intent = surprised && arrival.Def.Opening != null ? content.Intents[arrival.Def.Opening] : NextIntent(arrival);
             // During the enemy phase their next move is chosen, and shown, along with everyone else's.
             if (!enemyPhase) Telegraph(arrival);
+            Emit("appeared", arrival, Hero);
         }
 
         internal void EndFight(bool won)
         {
             if (!inFight) return;
+            Bridge.EndSounds("fight");
             moved = true;
             EncounterDef ended = fight;
             Effect onWon = fightWon;
@@ -968,6 +983,8 @@ namespace ExpeditionFramework.Core
         public void Perform(RunOption option)
         {
             if (Over) return;
+            // Before anything the action does, so a sound the action itself starts lasts until the next press.
+            Bridge.EndSounds("action");
             Interaction i = option.Interaction;
             string startedIn = Scene;
             bool ownChoice = currentEvent != null && currentEvent.Choices.Contains(i);

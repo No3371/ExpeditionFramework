@@ -64,7 +64,10 @@ namespace ExpeditionFramework.Core
             ("told", Field.Flag));
         // The game's volume sliders a rail can follow; "sound" follows none, like the game's own effects.
         public static readonly string[] AudioTypes = { "music", "ambience", "sound" };
-        public static readonly Shape AudioRail = new Shape(("sounds", Field.Any), ("every", Field.Numbers), ("volume", Field.Number), ("type", Field.Text));
+        public static readonly Shape AudioRail = new Shape(("sounds", Field.Any), ("every", Field.Numbers), ("volume", Field.Number), ("type", Field.Text),
+            ("when", Field.Any), ("fade", Field.Number), ("once", Field.Flag), ("start", Field.Number));
+        // What can end a sound that was started on a channel.
+        public static readonly string[] SoundUntil = { "action", "room", "fight" };
         public static readonly Shape AudioEntry = new Shape(("audio", Field.Text), ("chance_to_skip", Field.Number));
         public static readonly Shape Hud = new Shape(("title", Field.Any), ("rows", Field.Any), ("enemies", Field.Any));
         public static readonly Shape HudRow = new Shape(("when", Field.Any), ("parts", Field.Any), ("separator", Field.Flag));

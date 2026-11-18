@@ -428,6 +428,7 @@ namespace ExpeditionFramework.Core
                 string id = c.Require("value");
                 return s => s.Run.PlaySound(id);
             };
+            r.Effects["stop_sound"] = c => { string channel = c.Require("value"); return s => (s.Run as ExpeditionRun)?.StopSound(channel); };
             r.Effects["event"] = c =>
             {
                 if (c.Has("scheduled"))

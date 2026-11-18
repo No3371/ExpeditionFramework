@@ -108,6 +108,7 @@ all carry them.
 |---|---|---|---|
 | `run_start` | The run begins, before the first room | player | — |
 | `room_enter` | After a room's `enter` effects | player | — |
+| `appeared` | An enemy joins a fight: each one a fight opens with, just before `combat_start`, and each one that arrives later | that enemy | player |
 | `combat_start` | A fight starts, after openings are chosen | player | — |
 | `turn_end` | The player's action in a fight is done, before the enemies act | player | — |
 | `turn_start` | Before each enemy acts; and for the player when a new turn begins | that enemy, or player | player, or — |

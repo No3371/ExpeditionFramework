@@ -123,6 +123,8 @@ internal sealed class KitBridge : IBridge
     public void PlaySound(string id) { }
     public void PlayItemSound(RunItem item, string fallback) { }
     public void PlaySounds(SoundSpec spec) { }
+    public void StopSound(string channel) { }
+    public void EndSounds(string until) { }
     public void PlayDice(int count) { }
     public bool OpenTrade(TradeRequest request) => settings.TradeOpens;
     public TradeResult CloseTrade() => new TradeResult { CashChange = settings.LoseCashUpTo is int most ? -random.Next(0, most + 1) : 0 };

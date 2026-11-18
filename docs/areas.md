@@ -254,6 +254,10 @@ your rails replace it.
 | `every` | none | Seconds between plays: one number, or `[shortest, longest]` for a random wait. Without it the rail loops |
 | `volume` | 1 | How loud the rail is, from 0 up. 1 is the file as it is |
 | `type` | `ambience`, or `sound` with `every` | Which volume setting the rail follows: `music`, `ambience` (the game's background volume) or `sound` (master volume only) |
+| `when` | always | A condition. The rail plays only while it holds: `"player.hp * 3 < player.max_hp"`. Checked when the run begins and after each of the player's actions, not on a clock |
+| `fade` | 0 | Seconds the rail takes to fade in, and out when its `when` stops holding |
+| `once` | false | Plays its sound one time instead of looping. Not with `every` |
+| `start` | 0 | Where in the file a loop or a `once` begins, as a part of its length: `0.5` is the middle |
 
 A rail without `every` picks one of its sounds when the player arrives and loops it until they leave. A rail with
 `every` waits, picks one of its sounds and plays it once, then waits again; the first play comes after a first wait.

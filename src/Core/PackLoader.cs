@@ -1153,7 +1153,19 @@ namespace ExpeditionFramework.Core
                 string path = at + ".audio[" + index++ + "]";
                 if (!(e is Node node)) { Problem(path, "must be an object"); continue; }
                 CheckShape(node, Schema.AudioRail, path);
-                var rail = new AudioRail { Timed = node.ContainsKey("every") };
+                var rail = new AudioRail { Timed = node.ContainsKey("every"), Once = Bool(node, "once", false) };
+                if (node.ContainsKey("when")) rail.When = Condition(node["when"], d.Pack, path + ".when");
+                if (rail.Once && rail.Timed) Problem(path + ".once", "can't go with every: a rail either plays once or keeps coming back");
+                if (node.TryGetValue("fade", out object fade) && fade is double f)
+                {
+                    if (f < 0 || f > 60) Problem(path + ".fade", "must be seconds from 0 to 60");
+                    else rail.Fade = f;
+                }
+                if (node.TryGetValue("start", out object start) && start is double from)
+                {
+                    if (from < 0 || from >= 1) Problem(path + ".start", "must be a part of the file's length, from 0 to below 1");
+                    else rail.Start = from;
+                }
                 if (node.TryGetValue("volume", out object volume) && volume is double v)
                 {
                     if (v < 0) Problem(path + ".volume", "can't be below 0");
@@ -2005,6 +2017,14 @@ namespace ExpeditionFramework.Core
                 Span("gap", 0.12, 0, 60, out spec.Gap, out _);
                 Span("volume", 1, 0, 4, out spec.VolumeMin, out spec.VolumeMax);
                 Span("pitch", 1, 0.25, 4, out spec.PitchMin, out spec.PitchMax);
+                Span("fade", 0, 0, 60, out spec.Fade, out _);
+                spec.Channel = Text("channel");
+                spec.Until = Text("until");
+                spec.Loop = Flag("loop", false);
+                if (spec.Until != null && Array.IndexOf(Schema.SoundUntil, spec.Until) < 0) Error("until must be one of " + string.Join(", ", Schema.SoundUntil));
+                // Nothing could ever end it: the run only stops sounds it can name or that wait for something.
+                if (spec.Loop && spec.Channel == null && spec.Until == null) Error("a looping sound needs \"channel\" or \"until\"");
+                if (spec.Held && spec.Repeat > 1) Error("repeat can't go with channel, until, loop or fade: each play would replace the one before");
                 return spec;
             }
 

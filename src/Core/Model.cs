@@ -346,14 +346,29 @@ namespace ExpeditionFramework.Core
         public double VolumeMax = 1;
         public double PitchMin = 1;
         public double PitchMax = 1;
+        /// <summary>A name stop_sound can cut, and that a new sound on the same channel replaces. Null for none.</summary>
+        public string Channel;
+        /// <summary>One of Schema.SoundUntil, or null: what ends the sound on its own.</summary>
+        public string Until;
+        public double Fade;
+        public bool Loop;
+        /// <summary>True when the sound has to be kept track of after it starts, instead of played and forgotten.</summary>
+        public bool Held => Channel != null || Until != null || Loop || Fade > 0;
     }
 
     /// <summary>
     /// One channel of an area's audio. Rails play side by side. A rail without Timed picks one sound on arrival and loops
-    /// it; a Timed rail picks one every EveryMin to EveryMax seconds and plays it once.
+    /// it (or plays it once, with Once); a Timed rail picks one every EveryMin to EveryMax seconds and plays it once.
     /// </summary>
     public sealed class AudioRail
     {
+        /// <summary>The rail plays only while this holds, checked when the run begins and after each player action. Null for always.</summary>
+        public Condition When;
+        /// <summary>Seconds the rail takes to fade in and out.</summary>
+        public double Fade;
+        public bool Once;
+        /// <summary>Where in the file a loop or a once starts, as a part of its length from 0 to below 1.</summary>
+        public double Start;
         public List<AudioEntry> Sounds = new List<AudioEntry>();
         public bool Timed;
         public double EveryMin;
@@ -520,6 +535,9 @@ namespace ExpeditionFramework.Core
         void PlaySound(string id);
         void PlayItemSound(RunItem item, string fallback);
         void PlaySounds(SoundSpec spec);
+        void StopSound(string channel);
+        /// <summary>Something in Schema.SoundUntil happened; sounds held until it end.</summary>
+        void EndSounds(string until);
         /// <summary>The player's action threw this many dice: checks, and dice() in what the action did.</summary>
         void PlayDice(int count);
         bool OpenTrade(TradeRequest request);

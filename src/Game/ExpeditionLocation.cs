@@ -146,6 +146,7 @@ namespace ExpeditionFramework.Game
             run = new ExpeditionRun(content, area, new GameBridge(content, area, trade, sounds), sides => RNG.GetRandomInt(1, sides),
                 (pack, key, args) => ModHelper.GetLocalized(pack, key, args), ModEntry.L("ef_player"), intel.Today());
             run.Begin();
+            audio.Recheck(run.Holds);
         }
 
         public override void BuildPanel(CustomUIBuilder builder)
@@ -493,6 +494,8 @@ namespace ExpeditionFramework.Game
             {
                 ModEntry.Log.Warning("Expedition action " + option.Interaction.Id + " failed: " + ex);
             }
+            // A new turn for the player: rails with a condition hear about it here, not on a clock.
+            if (run != null) audio.Recheck(run.Holds);
             // The counters sit in the middle of the screen, where the info panel is.
             if (run.Trading) window.Hide();
             shownButtons = null;

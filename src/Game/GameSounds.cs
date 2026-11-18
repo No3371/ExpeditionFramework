@@ -25,7 +25,19 @@ namespace ExpeditionFramework.Game
             VolumeMin = 0.45, VolumeMax = 0.6, PitchMin = 0.92, PitchMax = 1.1,
         };
 
+        // A sound that is kept track of after it starts: it has a channel to stop it by, something it waits for, a loop or a fade.
+        private sealed class Voice
+        {
+            public SoundSpec Spec;
+            public GameObject Host;
+            public AudioSource Source;
+            public float Full;
+            public float Level;
+            public bool Stopping;
+        }
+
         private readonly List<(SoundSpec Spec, float At)> queued = new List<(SoundSpec, float)>();
+        private readonly List<Voice> voices = new List<Voice>();
 
         private readonly List<(string Id, float At)> later = new List<(string, float)>();
         private readonly HashSet<string> thisFrame = new HashSet<string>();
@@ -52,12 +64,43 @@ namespace ExpeditionFramework.Game
                 queued.RemoveAt(i);
                 PlayOne(spec);
             }
+            for (int i = voices.Count - 1; i >= 0; i--)
+            {
+                Voice voice = voices[i];
+                bool gone = voice.Source == null;
+                if (!gone)
+                {
+                    float fade = (float)voice.Spec.Fade;
+                    float target = voice.Stopping ? 0f : 1f;
+                    voice.Level = fade > 0f ? Mathf.MoveTowards(voice.Level, target, Time.unscaledDeltaTime / fade) : target;
+                    voice.Source.volume = voice.Full * voice.Level;
+                    // A paused listener reports nothing as playing, which is not the sound having run out.
+                    bool ranOut = !voice.Source.loop && !voice.Source.isPlaying && !AudioListener.pause;
+                    gone = ranOut || (voice.Stopping && voice.Level <= 0f);
+                    if (gone) Object.Destroy(voice.Host);
+                }
+                if (gone) voices.RemoveAt(i);
+            }
         }
 
         public void Clear()
         {
             later.Clear();
             queued.Clear();
+            foreach (Voice voice in voices) if (voice.Host != null) Object.Destroy(voice.Host);
+            voices.Clear();
+        }
+
+        public void Stop(string channel)
+        {
+            queued.RemoveAll(q => q.Spec.Channel == channel);
+            foreach (Voice voice in voices) if (voice.Spec.Channel == channel) voice.Stopping = true;
+        }
+
+        public void End(string until)
+        {
+            queued.RemoveAll(q => q.Spec.Until == until);
+            foreach (Voice voice in voices) if (voice.Spec.Until == until) voice.Stopping = true;
         }
 
         public void Play(SoundSpec spec)
@@ -79,7 +122,7 @@ namespace ExpeditionFramework.Game
 
         // Each play gets a source of its own: pitch belongs to the source, and the game's shared channels would cut one
         // play with the next.
-        private static void PlayOne(SoundSpec spec)
+        private void PlayOne(SoundSpec spec)
         {
             AudioEntry entry = spec.Sounds[Random.Range(0, spec.Sounds.Count)];
             if (Random.value * 100f < entry.SkipChance) return;
@@ -95,11 +138,23 @@ namespace ExpeditionFramework.Game
             var source = host.AddComponent<AudioSource>();
             source.playOnAwake = false;
             source.outputAudioMixerGroup = like.outputAudioMixerGroup;
-            source.volume = like.volume * Random.Range((float)spec.VolumeMin, (float)spec.VolumeMax);
+            float full = like.volume * Random.Range((float)spec.VolumeMin, (float)spec.VolumeMax);
             source.pitch = Random.Range((float)spec.PitchMin, (float)spec.PitchMax);
             source.clip = clip;
+            if (!spec.Held)
+            {
+                source.volume = full;
+                source.Play();
+                Object.Destroy(host, clip.length / source.pitch + 0.2f);
+                return;
+            }
+            // One sound per channel: the newcomer takes over as the old one fades.
+            if (spec.Channel != null) foreach (Voice old in voices) if (old.Spec.Channel == spec.Channel) old.Stopping = true;
+            var voice = new Voice { Spec = spec, Host = host, Source = source, Full = full, Level = spec.Fade > 0 ? 0f : 1f };
+            source.loop = spec.Loop;
+            source.volume = full * voice.Level;
             source.Play();
-            Object.Destroy(host, clip.length / source.pitch + 0.2f);
+            voices.Add(voice);
         }
 
         public void Play(string id)

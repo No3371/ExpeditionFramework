@@ -49,6 +49,7 @@ internal static class Program
         TestIntelMax();
         TestAreaAudio();
         TestSoundsAndDice();
+        TestHeldSoundsAndAppeared();
         TestToldIntel();
         TestCardKey();
         TestSelfTestPack();
@@ -800,7 +801,71 @@ internal static class Program
         Reports(@"{ ""sounds"": [ { ""audio"": ""x"", ""chance_to_skip"": 101 } ] }", "chance_to_skip: must be a number from 0 to 100");
         Reports(@"{ ""sounds"": [ { ""audio"": ""x"" } ], ""pitch"": [ 1.2, 0.8 ] }", "pitch: must be a number from 0.25 to 4");
         Reports(@"{ ""sounds"": [ { ""audio"": ""x"" } ], ""volume"": ""loud"" }", "volume: must be a number from 0 to 4");
-        Check(WarningsIn(Pack(@"{ ""sounds"": [ { ""audio"": ""x"" } ], ""loop"": true }")).Any(w => w.Contains("loop")), "an unknown sound key is warned about");
+        Check(WarningsIn(Pack(@"{ ""sounds"": [ { ""audio"": ""x"" } ], ""wobble"": true }")).Any(w => w.Contains("wobble")), "an unknown sound key is warned about");
+    }
+
+    // Sounds that are held (channel, until, loop, fade), the three things that end them, a rail's when/fade/once/start, and
+    // the appeared hook: once for each enemy a fight opens with and once for each that joins later.
+    private static void TestHeldSoundsAndAppeared()
+    {
+        string Pack(string sound, string audio) => @"{
+          ""intents"": { ""idle"": { ""label"": ""k"", ""do"": [] } },
+          ""enemies"": { ""rat"": { ""name"": ""k"", ""stats"": { ""hp"": 5 }, ""behavior"": [ { ""intent"": ""idle"" } ],
+            ""on"": { ""appeared"": [ { ""add"": { ""var"": ""run.seen"", ""value"": 1 } } ] } } },
+          ""rooms"": { ""r"": { ""text"": ""k"", ""interactions"": [
+            { ""id"": ""go"", ""label"": ""k"", ""stay"": true, ""do"": [ { ""sound"": " + sound + @" }, { ""stop_sound"": ""steps"" } ] }
+          ] } },
+          ""areas"": { ""a"": { ""title"": ""k"", ""player"": { ""hp"": 9 }, ""layout"": [ { ""room"": ""r"" }, { ""room"": ""r"" } ], ""audio"": " + audio + @" } }
+        }";
+        const string Steps = @"{ ""sounds"": [ { ""audio"": ""m:steps"" } ], ""channel"": ""steps"", ""until"": ""action"", ""loop"": true, ""fade"": 0.3 }";
+        const string Rails = @"[
+          { ""when"": ""player.hp * 3 < player.max_hp"", ""fade"": 2, ""sounds"": [ { ""audio"": ""m:danger"" } ] },
+          { ""once"": true, ""start"": 0.5, ""sounds"": [ { ""audio"": ""m:enter"" } ] }
+        ]";
+        Content content = Compiled(Pack(Steps, Rails));
+        string all = string.Join("; ", content.Problems.Concat(content.Warnings));
+        Check(all == "", "held sounds and conditional rails load cleanly: " + all);
+        if (all != "") return;
+        List<AudioRail> rails = content.Areas["t:a"].Audio;
+        Check(rails[0].When != null && rails[0].Fade == 2 && !rails[0].Once, "a rail keeps its when and fade");
+        Check(rails[1].When == null && rails[1].Once && rails[1].Start == 0.5, "a rail keeps once and start");
+
+        var bridge = new FakeBridge(new Random(1));
+        var run = new ExpeditionRun(content, content.Areas["t:a"], bridge, n => 1, (p, k, a) => k, "you");
+        run.Begin();
+        Check(bridge.Ended.SequenceEqual(new[] { "room" }), "entering the first room ends room sounds: " + string.Join(",", bridge.Ended));
+        Check(!run.Holds(rails[0].When), "a healthy player doesn't hold the low-health rail");
+        run.Player.Set("hp", 2);
+        Check(run.Holds(rails[0].When), "a hurt player holds it");
+        bridge.Ended.Clear();
+        run.Perform(run.Options().First(o => o.Interaction.Id == "go"));
+        Check(bridge.Ended.SequenceEqual(new[] { "action" }), "an action ends action sounds, before it starts its own: " + string.Join(",", bridge.Ended));
+        SoundSpec spec = bridge.Played;
+        Check(spec != null && spec.Held && spec.Channel == "steps" && spec.Until == "action" && spec.Loop && spec.Fade == 0.3, "a held sound keeps channel, until, loop and fade");
+        Check(bridge.Stopped == "steps", "stop_sound names the channel");
+
+        IRun api = run;
+        bridge.Ended.Clear();
+        api.Combat.Muster(new[] { api.Combat.Make("t:rat"), api.Combat.Make("t:rat") }, false);
+        api.Combat.Engage(null, run.RootScope, false, null);
+        Check(run.Get("seen") == 2, "appeared fires for each enemy a fight opens with, got " + run.Get("seen"));
+        run.Spawn((Entity)api.Combat.Make("t:rat"), false);
+        Check(run.Get("seen") == 3, "appeared fires for one who joins later, got " + run.Get("seen"));
+        run.EndFight(true);
+        Check(bridge.Ended.Contains("fight"), "a fight ending ends fight sounds: " + string.Join(",", bridge.Ended));
+
+        void Reports(string sound, string audio, string expected)
+        {
+            List<string> p = ProblemsIn(Pack(sound, audio));
+            Check(p.Any(m => m.Contains(expected)), "expected a problem with \"" + expected + "\", got: " + string.Join("; ", p));
+        }
+        const string One = @"""sounds"": [ { ""audio"": ""x"" } ]";
+        Reports("{ " + One + @", ""until"": ""dawn"" }", "[]", "until must be one of action, room, fight");
+        Reports("{ " + One + @", ""loop"": true }", "[]", "a looping sound needs");
+        Reports("{ " + One + @", ""channel"": ""c"", ""repeat"": 2 }", "[]", "repeat can't go with");
+        Reports(Steps, "[ { " + One + @", ""once"": true, ""every"": 5 } ]", "once: can't go with every");
+        Reports(Steps, "[ { " + One + @", ""start"": 1 } ]", "start: must be a part of the file's length");
+        Reports(Steps, "[ { " + One + @", ""fade"": 61 } ]", "fade: must be seconds from 0 to 60");
     }
 
     // An area's audio rails: a rail with "every" is timed and follows no slider, one without loops and follows the
@@ -1895,6 +1960,10 @@ internal static class Program
         public SoundSpec Played;
         public int Dice;
         public void PlaySounds(SoundSpec spec) => Played = spec;
+        public string Stopped;
+        public List<string> Ended = new List<string>();
+        public void StopSound(string channel) => Stopped = channel;
+        public void EndSounds(string until) => Ended.Add(until);
         public void PlayDice(int count) => Dice += count;
         public bool OpenTrade(TradeRequest request) => false;
         public TradeResult CloseTrade() => new TradeResult();
