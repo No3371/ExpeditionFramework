@@ -479,7 +479,9 @@ namespace ExpeditionFramework.Core
         internal void Say(string tone, Line line, IScope scope)
         {
             Line chosen = Lines.Choose(line, scope);
-            if (chosen != null) Log(chosen.Tone ?? tone, Lines.Render(chosen, scope));
+            if (chosen == null) return;
+            string text = Lines.Render(chosen, scope);
+            if (text.Length > 0) Log(chosen.Tone ?? tone, text);
         }
 
         internal void Found(string name)

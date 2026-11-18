@@ -484,7 +484,11 @@ namespace ExpeditionFramework.Core
             {
                 ILine line = c.InlineLine();
                 string color = c.Text("color");
-                return s => s.Run.NightLog(line.Render(s), color);
+                return s =>
+                {
+                    string text = line.Render(s);
+                    if (text.Length > 0) s.Run.NightLog(text, color);
+                };
             };
             r.Effects["emit"] = c =>
             {
